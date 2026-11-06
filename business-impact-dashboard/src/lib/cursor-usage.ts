@@ -29,8 +29,46 @@ type FilteredUsageResponse = {
   totalUsageEventsCount?: number;
 };
 
+function normalizeApiKey(raw: string): string {
+  let key = raw.trim();
+  // Allow pasting "Bearer …" or "Basic …" by mistake; Admin API wants the raw key.
+  if (/^bearer\s+/i.test(key)) key = key.replace(/^bearer\s+/i, "").trim();
+  if (/^basic\s+/i.test(key)) {
+    try {
+      const decoded = Buffer.from(key.replace(/^basic\s+/i, ""), "base64").toString(
+        "utf8",
+      );
+      key = decoded.split(":")[0] ?? key;
+    } catch {
+      // keep original
+    }
+  }
+  return key.trim();
+}
+
 function basicAuthHeader(apiKey: string): string {
-  return `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`;
+  return `Basic ${Buffer.from(`${normalizeApiKey(apiKey)}:`).toString("base64")}`;
+}
+
+function usageAuthErrorMessage(status: number, body: string): string {
+  const lower = body.toLowerCase();
+  if (
+    status === 403 ||
+    lower.includes("permission_denied") ||
+    lower.includes("not_high_enough_permissions") ||
+    lower.includes("service token owner") ||
+    lower.includes("invalid team api key")
+  ) {
+    return [
+      "Cursor rejected USAGE_ADMIN_API_KEY for the team usage API.",
+      "Create a Team Admin API key (scope admin:*) from cursor.com/dashboard → API Keys → Team tab",
+      "(not a personal key, Cloud Agents key, or service-account token), then update the app secret and Refresh.",
+    ].join(" ");
+  }
+  if (status === 401) {
+    return "Cursor usage API rejected the key (401). Check USAGE_ADMIN_API_KEY and try again.";
+  }
+  return `Cursor usage API ${status}: ${body.slice(0, 280) || "request failed"}`;
 }
 
 function eventIdFor(raw: CursorUsageEventRaw): string {
@@ -103,9 +141,7 @@ export async function fetchUsageEvents(params: {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(
-        `Cursor usage API ${res.status}: ${text.slice(0, 400) || res.statusText}`,
-      );
+      throw new Error(usageAuthErrorMessage(res.status, text || res.statusText));
     }
 
     const data = (await res.json()) as FilteredUsageResponse;
