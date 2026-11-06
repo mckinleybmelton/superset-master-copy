@@ -47,6 +47,12 @@ import {
   EmbeddedContextProviders,
   getThemeController,
 } from './EmbeddedContextProviders';
+import {
+  type HostFilterValue,
+  queueChrome,
+  queueThemeMode,
+  waitForKitHandlers,
+} from './kitBridge';
 import { embeddedApi } from './api';
 import { getDataMaskChangeTrigger } from './utils';
 import { validateMessageEvent } from './originValidation';
@@ -166,7 +172,11 @@ const EmbeddedChartRoute = ({
   // Loaded on the chart route so the dashboard embed entry does not pull it in.
   // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
   const KitPage = require('./KitPage').default;
-  return <KitPage kind="chart" uuid={match.params.uuid} />;
+  return (
+    <EmbeddedContextProviders>
+      <KitPage kind="chart" uuid={match.params.uuid} />
+    </EmbeddedContextProviders>
+  );
 };
 
 const EmbeddedExploreRoute = ({
@@ -176,14 +186,18 @@ const EmbeddedExploreRoute = ({
 }) => {
   // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
   const KitPage = require('./KitPage').default;
-  return <KitPage kind="explore" uuid={match.params.uuid} />;
+  return (
+    <EmbeddedContextProviders>
+      <KitPage kind="explore" uuid={match.params.uuid} />
+    </EmbeddedContextProviders>
+  );
 };
 
 const EmbeddedApp = () => (
   <Router basename={applicationRoot()}>
     <Switch>
-      <Route path="/embedded/chart/:uuid/" component={EmbeddedChartRoute} />
-      <Route path="/embedded/explore/:uuid/" component={EmbeddedExploreRoute} />
+      <Route path="/embedded/chart/:uuid" component={EmbeddedChartRoute} />
+      <Route path="/embedded/explore/:uuid" component={EmbeddedExploreRoute} />
       {/* todo (embedded) remove this line after uuids are deployed */}
       <Route path="/dashboard/:idOrSlug/embedded/" component={EmbeddedRoute} />
       <Route path="/embedded/:uuid/" component={EmbeddedRoute} />
@@ -367,6 +381,25 @@ window.addEventListener('message', function embeddedPageInitializer(event) {
     );
 
     Switchboard.defineMethod(
+      'applyHostFilters',
+      async (payload: { filters?: Record<string, unknown> }) => {
+        const kit = await waitForKitHandlers();
+        return kit.applyHostFilters(
+          (payload?.filters || {}) as Record<string, HostFilterValue>,
+        );
+      },
+    );
+    Switchboard.defineMethod(
+      'setChrome',
+      (payload: { chrome?: Record<string, string | number> }) => ({
+        ignored: queueChrome(payload?.chrome || {}),
+      }),
+    );
+    Switchboard.defineMethod('getExploreState', async () => {
+      const kit = await waitForKitHandlers();
+      return kit.getExploreState();
+    });
+    Switchboard.defineMethod(
       'setThemeMode',
       (payload: { mode: 'default' | 'dark' | 'system' }) => {
         const { mode } = payload;
@@ -386,6 +419,7 @@ window.addEventListener('message', function embeddedPageInitializer(event) {
             throw new Error(`Invalid theme mode: ${mode}`);
           }
 
+          queueThemeMode(mode);
           themeController.setThemeMode(themeMode);
           return { success: true, message: `Theme mode set to ${mode}` };
         } catch (error) {

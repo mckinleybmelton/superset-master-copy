@@ -55,22 +55,30 @@ describe("embedded analytics kit sdk", () => {
     const mountPoint = document.createElement("div");
     document.body.appendChild(mountPoint);
     const onIgnoredFilters = vi.fn();
+    const onIgnoredThemeKeys = vi.fn();
     const pending = embedChart({
       id: "embed-uuid",
       supersetDomain: "https://superset.example.com",
       mountPoint,
       fetchGuestToken: async () => "token",
       onIgnoredFilters,
+      onIgnoredThemeKeys,
     });
     const iframe = mountPoint.querySelector("iframe");
     expect(iframe?.getAttribute("src")).toBe(
-      "https://superset.example.com/embedded/chart/embed-uuid/",
+      "https://superset.example.com/embedded/chart/embed-uuid",
     );
     iframe?.dispatchEvent(new Event("load"));
     const handle = await pending;
     const report = await handle.setFilters({ status: "open" });
     expect(report.ignored[0].key).toBe("status");
     expect(onIgnoredFilters).toHaveBeenCalled();
+    const ignoredThemeKeys = await handle.setChrome({
+      colorText: "#111",
+      colorSeries: "#f00",
+    });
+    expect(ignoredThemeKeys).toEqual(["colorSeries"]);
+    expect(onIgnoredThemeKeys).toHaveBeenCalledWith(["colorSeries"]);
     handle.unmount();
 
     const explorePoint = document.createElement("div");
@@ -83,7 +91,7 @@ describe("embedded analytics kit sdk", () => {
     });
     const exploreFrame = explorePoint.querySelector("iframe");
     expect(exploreFrame?.getAttribute("src")).toBe(
-      "https://superset.example.com/embedded/explore/explore-uuid/",
+      "https://superset.example.com/embedded/explore/explore-uuid",
     );
     exploreFrame?.dispatchEvent(new Event("load"));
     const exploreHandle = await explorePending;

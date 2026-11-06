@@ -16,28 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '@apache-superset/core/translation';
 import { Alert } from '@apache-superset/core/components';
-import { ThemeMode } from '@apache-superset/core/theme';
-import { SupersetClient } from '@superset-ui/core';
+import {
+  type SupersetThemeConfig,
+  ThemeMode,
+} from '@apache-superset/core/theme';
+import { QueryData, QueryFormData, SupersetClient } from '@superset-ui/core';
 import { Loading } from '@superset-ui/core/components';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import { getThemeController } from './EmbeddedContextProviders';
+import {
+  chartDataRequestBody,
+  NamedTheme,
+  themeStack,
+  ThemeModeName,
+} from './chartTheme';
+import {
+  HostFilterValue,
+  initialThemeRequest,
+  registerKitHandlers,
+} from './kitBridge';
+import SavedChart from './SavedChart';
 import StarterViz, {
   ExploreRow,
   STARTER_VIZ_TYPES,
   StarterVizType,
 } from './StarterViz';
-
-const CHROME_KEYS = new Set([
-  'colorBgContainer',
-  'colorText',
-  'colorTextSecondary',
-  'colorBorder',
-  'fontFamily',
-  'borderRadius',
-]);
 
 type Ignored = { key: string; reason: string };
 
@@ -50,7 +56,11 @@ type SnapshotFilter = {
 type ExplorePayload = {
   result?: {
     data?: ExploreRow[];
-    snapshot?: { vizType?: string; metrics?: string[] };
+    snapshot?: {
+      vizType?: string;
+      metrics?: string[];
+      dimensions?: string[];
+    };
     ignored_filters?: Ignored[];
     message?: string;
   };
@@ -70,7 +80,37 @@ type BootstrapPayload = {
   };
 };
 
+type ChartPayload = {
+  result?: {
+    form_data?: QueryFormData;
+    queries?: QueryData[];
+    ignored_filters?: Ignored[];
+    theme?: NamedTheme | null;
+    hide_title?: boolean;
+  };
+};
+
 type Props = { kind: 'chart' | 'explore'; uuid: string };
+
+function modeName(mode: ThemeMode): ThemeModeName {
+  if (mode === ThemeMode.DARK) {
+    return 'dark';
+  }
+  if (mode === ThemeMode.SYSTEM) {
+    return 'system';
+  }
+  return 'default';
+}
+
+function themeMode(mode: ThemeModeName): ThemeMode {
+  if (mode === 'dark') {
+    return ThemeMode.DARK;
+  }
+  if (mode === 'system') {
+    return ThemeMode.SYSTEM;
+  }
+  return ThemeMode.DEFAULT;
+}
 
 function isStarterViz(value: string | undefined): value is StarterVizType {
   return STARTER_VIZ_TYPES.some(item => item === value);
@@ -94,8 +134,21 @@ export default function KitPage({ kind, uuid }: Props) {
   const [vizChoices, setVizChoices] = useState<StarterVizType[]>([
     ...STARTER_VIZ_TYPES,
   ]);
-  const [loading, setLoading] = useState(kind === 'explore');
+  const [loading, setLoading] = useState(
+    kind === 'explore' || kind === 'chart',
+  );
   const [error, setError] = useState('');
+  const [namedTheme, setNamedTheme] = useState<NamedTheme | null>(null);
+  const [chrome, setChrome] = useState<Record<string, string | number>>({});
+  const [hideTitle, setHideTitle] = useState(false);
+  const [savedForm, setSavedForm] = useState<QueryFormData | null>(null);
+  const [queries, setQueries] = useState<QueryData[]>([]);
+  const snapshotRef = useRef({
+    vizType: 'table',
+    dimensions: [] as string[],
+    metrics: [] as string[],
+    filters: [] as SnapshotFilter[],
+  });
 
   const loadExplore = useCallback(
     (
@@ -124,6 +177,12 @@ export default function KitPage({ kind, uuid }: Props) {
             setVizType(returned);
           }
           setMetric(result?.snapshot?.metrics?.[0]);
+          snapshotRef.current = {
+            vizType: isStarterViz(returned) ? returned : nextViz,
+            dimensions: nextDimensions,
+            metrics: nextMetrics,
+            filters: [],
+          };
         })
         .catch(() => setError(t('The dataset query failed.')))
         .finally(() => setLoading(false));
@@ -172,13 +231,94 @@ export default function KitPage({ kind, uuid }: Props) {
     };
   }, [kind, kitDisabled, uuid, loadExplore]);
 
-  const themeId = (bootstrap as { embedded?: { theme_id?: number } }).embedded
-    ?.theme_id;
+  const loadChart = useCallback(
+    (filters: Record<string, HostFilterValue>) => {
+      setLoading(true);
+      setError('');
+      return SupersetClient.post({
+        endpoint: `/api/v1/embedded_kit/chart/${uuid}/data/`,
+        body: JSON.stringify(chartDataRequestBody(filters)),
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then(({ json }: { json: ChartPayload }) => {
+          const { result } = json;
+          const ignoredFilters = result?.ignored_filters || [];
+          setIgnored(ignoredFilters);
+          setDismissed(false);
+          if (result?.form_data?.viz_type) {
+            setSavedForm(result.form_data);
+          }
+          setQueries(result?.queries || []);
+          return { ignored: ignoredFilters };
+        })
+        .catch(() => {
+          setError(t('The chart query failed.'));
+          return { ignored: [] as Ignored[] };
+        })
+        .finally(() => setLoading(false));
+    },
+    [uuid],
+  );
+
+  useEffect(() => {
+    if (kind !== 'chart' || kitDisabled) {
+      return undefined;
+    }
+    let cancelled = false;
+    SupersetClient.get({
+      endpoint: `/api/v1/embedded_kit/chart/${uuid}/bootstrap/`,
+    })
+      .then(({ json }: { json: ChartPayload }) => {
+        if (cancelled) {
+          return;
+        }
+        const { result } = json;
+        setNamedTheme(result?.theme || null);
+        setHideTitle(Boolean(result?.hide_title));
+        if (result?.form_data?.viz_type) {
+          setSavedForm(result.form_data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(t('Embedded charts are not enabled.'));
+        }
+      });
+    loadChart({});
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, kitDisabled, uuid, loadChart]);
 
   useEffect(() => {
     const controller = getThemeController();
-    controller.setThemeMode(mode);
-  }, [mode, themeId]);
+    const stack = themeStack(namedTheme, modeName(mode), chrome);
+    try {
+      controller.setThemeConfig(stack.namedConfig as SupersetThemeConfig);
+      controller.setThemeMode(mode);
+      controller.setThemeConfig(stack.chromeConfig as SupersetThemeConfig);
+      controller.setThemeMode(mode);
+    } catch {
+      // A guest with a single theme cannot change mode. Chrome still applied
+      // when setThemeConfig succeeded before the mode call.
+    }
+  }, [namedTheme, mode, chrome]);
+
+  useEffect(() => {
+    const queued = initialThemeRequest();
+    setMode(themeMode(queued.mode));
+    setChrome(queued.chrome);
+    registerKitHandlers({
+      applyHostFilters: filters => loadChart(filters),
+      setChrome: next => {
+        const stack = themeStack(null, modeName(mode), next);
+        setChrome(stack.chromeConfig.theme_default.token || {});
+        return stack.ignored;
+      },
+      setThemeMode: next => setMode(themeMode(next)),
+      getExploreState: () => snapshotRef.current,
+    });
+  }, [loadChart, mode, namedTheme]);
 
   const title = useMemo(
     () => (kind === 'chart' ? t('Embedded chart') : t('Explore')),
@@ -194,19 +334,6 @@ export default function KitPage({ kind, uuid }: Props) {
       </p>
     );
   }
-
-  const applyChrome = (chrome: Record<string, string | number>) => {
-    const ignoredKeys = Object.keys(chrome).filter(
-      key => !CHROME_KEYS.has(key),
-    );
-    const root = document.documentElement;
-    Object.entries(chrome).forEach(([key, value]) => {
-      if (CHROME_KEYS.has(key)) {
-        root.style.setProperty(`--${key}`, String(value));
-      }
-    });
-    return ignoredKeys;
-  };
 
   return (
     <div data-test="embedded-kit" data-embed-id={uuid}>
@@ -225,8 +352,17 @@ export default function KitPage({ kind, uuid }: Props) {
             .join(', ')}
         />
       ) : null}
-      <h1>{title}</h1>
+      {hideTitle ? null : <h1>{title}</h1>}
       <p data-test="kit-kind">{kind}</p>
+      {kind === 'chart' ? (
+        <>
+          {error ? <Alert type="error" message={error} /> : null}
+          {loading ? <Loading /> : null}
+          {!loading && !error && savedForm ? (
+            <SavedChart formData={savedForm} queries={queries} />
+          ) : null}
+        </>
+      ) : null}
       {kind === 'explore' ? (
         <>
           <div>
@@ -249,12 +385,6 @@ export default function KitPage({ kind, uuid }: Props) {
           ) : null}
         </>
       ) : null}
-      {/* Switchboard handlers are attached by the host after guest token delivery. */}
-      <span
-        hidden
-        data-apply-chrome={String(Boolean(applyChrome))}
-        data-set-mode={setMode.name}
-      />
     </div>
   );
 }

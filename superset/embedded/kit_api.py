@@ -28,6 +28,7 @@ from flask_appbuilder.api import expose, protect, safe
 from superset import db, security_manager
 from superset.connectors.sqla.models import SqlaTable
 from superset.daos.embedded_kit import EmbeddedChartDAO, EmbeddedExploreDAO
+from superset.embedded.chart_embed import run_saved_chart, saved_theme
 from superset.embedded.explore_query import ExploreQueryError, run_explore_snapshot
 from superset.embedded.kit import (
     is_embedded_analytics_kit_enabled,
@@ -54,6 +55,17 @@ logger = logging.getLogger(__name__)
 
 def _kit_disabled() -> bool:
     return not is_embedded_analytics_kit_enabled()
+
+
+def _guest_owns(kind: str, embed_uuid: str) -> bool:
+    """True when the current guest token names this embed."""
+    guest = security_manager.get_current_guest_user_if_guest()
+    if guest is None:
+        return False
+    return any(
+        str(item.get("type")) == kind and str(item.get("id")) == embed_uuid
+        for item in guest.resources or []
+    )
 
 
 class EmbeddedKitRestApi(BaseSupersetApi):
@@ -343,6 +355,7 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
     openapi_spec_tag = "Embedded Analytics Kit Guest"
     method_permission_name = {
         "chart_bootstrap": "bootstrap",
+        "chart_data": "data",
         "explore_bootstrap": "bootstrap",
         "explore_data": "data",
     }
@@ -357,6 +370,9 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
         embed = EmbeddedChartDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _guest_owns("chart", str(embed.uuid)):
+            return self.response_403()
+        chart = db.session.query(Slice).filter(Slice.id == embed.chart_id).one_or_none()
         return self.response(
             200,
             result={
@@ -366,9 +382,34 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
                 "show_download": bool(embed.show_download),
                 "filters": json.loads(embed.filters) if embed.filters else [],
                 "theme_id": embed.theme_id,
+                "theme": saved_theme(embed.theme_id),
+                "form_data": chart.form_data if chart is not None else {},
                 "allowed_domains": embed.allowed_domains,
             },
         )
+
+    @expose("/chart/<uuid>/data/", methods=("POST",))
+    @protect()
+    @safe
+    @statsd_metrics
+    def chart_data(self, uuid: str) -> Response:  # pylint: disable=redefined-builtin
+        """Run the saved chart. The body may carry host filters, not form data."""
+        if _kit_disabled():
+            return self.response_404()
+        if not security_manager.is_guest_user():
+            return self.response_403()
+        embed = EmbeddedChartDAO.find_by_id(uuid)
+        if embed is None:
+            return self.response_404()
+        if not _guest_owns("chart", str(embed.uuid)):
+            return self.response_403()
+        try:
+            payload = run_saved_chart(embed, request.json or {})
+        except SupersetSecurityException:
+            return self.response_403()
+        except ExploreQueryError as ex:
+            return self.response_400(message=str(ex))
+        return self.response(200, result=payload)
 
     @expose("/explore/<uuid>/bootstrap/", methods=("GET",))
     @protect()

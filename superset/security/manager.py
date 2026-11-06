@@ -5724,8 +5724,11 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
                 )
             )
 
-        if datasource or query_context:
-            form_data = None
+            if self._kit_chart_guest_can_query(query_context):
+                return
+
+            if datasource or query_context:
+                form_data = None
 
             if query_context:
                 datasource = query_context.datasource
@@ -6885,6 +6888,39 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         if isinstance(user, GuestUser):
             return user
         return None
+
+    def _kit_chart_guest_can_query(self, query_context: Any) -> bool:
+        """Allow a chart guest to query the saved chart named by the token.
+
+        Dashboard guests stay on the existing dashboard grant. A chart guest
+        may query only that embed's chart, and only when the dataset is on
+        the token allowlist.
+        """
+        if query_context is None or not self.is_guest_user():
+            return False
+        guest = self.get_current_guest_user_if_guest()
+        if guest is None:
+            return False
+        embed_ids = [
+            str(item.get("id"))
+            for item in guest.resources or []
+            if str(item.get("type")) == GuestTokenResourceType.CHART.value
+        ]
+        if len(embed_ids) != 1:
+            return False
+        # pylint: disable=import-outside-toplevel
+        from superset.daos.embedded_kit import EmbeddedChartDAO
+
+        embed = EmbeddedChartDAO.find_by_id(embed_ids[0])
+        chart = getattr(query_context, "slice_", None)
+        if (
+            embed is None
+            or chart is None
+            or getattr(chart, "id", None) != embed.chart_id
+        ):
+            return False
+        datasource = getattr(query_context, "datasource", None)
+        return self._guest_token_allows_dataset(getattr(datasource, "id", None))
 
     def _guest_token_allows_dataset(self, datasource_id: Optional[int]) -> bool:
         """Return whether the current guest token permits this dataset.

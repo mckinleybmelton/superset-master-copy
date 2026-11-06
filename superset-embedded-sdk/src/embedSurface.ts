@@ -158,7 +158,7 @@ export async function embedSurface({
       resolve();
     });
   });
-  iframe.src = `${domain}/embedded/${path}/${id}/`;
+  iframe.src = `${domain}/embedded/${path}/${id}`;
   mountPoint.replaceChildren(iframe);
   await ready;
 
