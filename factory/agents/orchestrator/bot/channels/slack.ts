@@ -1,29 +1,28 @@
 import { slackChannel } from "@grok/agent-sdk/channels/slack";
 
 /**
- * Grok Bot — Slack Socket Mode front door for the factory orchestrator.
+ * Grok Bot — Slack Socket Mode front door (deferred until Cursor team exists).
  * Mint tokens with: npx @grok/agent-sdk@0.6.0 slack create --dir . --name "Superset Factory"
  */
 export default slackChannel({
   envPrefix: "ORCHESTRATOR",
   suggestedPrompts: [
     {
-      title: "Route ticket",
+      title: "Describe a change",
       message:
-        "Route issue #12 (prd_draft): add a factory status panel to SqlLab.",
+        "I want SqlLab to show a read-only factory stage badge for the open Jira ticket.",
+    },
+    {
+      title: "Continue existing ticket",
+      message: "ASF-12: continue factory routing for this ticket.",
     },
     {
       title: "Approve gate",
-      message: "Approve prd_review for issue #12 and advance the factory.",
-    },
-    {
-      title: "Reject gate",
-      message:
-        "Reject design_review for issue #12 — need clearer empty states.",
+      message: "Approve prd_review for ASF-12 and advance the factory.",
     },
     {
       title: "Status",
-      message: "What is the factory status of issue #12?",
+      message: "What is the factory status of ASF-12?",
     },
   ],
 });

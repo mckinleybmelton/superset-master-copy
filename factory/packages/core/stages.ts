@@ -31,7 +31,8 @@ const STAGE_SET = new Set<string>(FACTORY_STAGES);
 
 /** Who may apply each stage label after a successful artifact/gate. */
 export const STAGE_WRITERS: Record<FactoryStage, readonly StageActor[]> = {
-  prd_draft: ["product", "human"],
+  // Orchestrator may set prd_draft once at Jira intake (find/create).
+  prd_draft: ["orchestrator", "product", "human"],
   prd_review: ["product"],
   design_draft: ["product", "human"],
   design_review: ["design"],
@@ -134,7 +135,7 @@ export type ApplyStageResult =
   | { ok: false; error: string };
 
 /**
- * Plan a label mutation. Callers apply `remove`/`add` via GitHub MCP.
+ * Plan a label mutation. Callers apply `remove`/`add` via Jira labels MCP.
  * `pr_review` requires `prExists === true`.
  */
 export function planApplyStage(input: {

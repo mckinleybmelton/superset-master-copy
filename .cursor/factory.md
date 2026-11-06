@@ -1,23 +1,25 @@
 # Superset software factory
 
-This fork hosts an in-repo AI factory under [`factory/`](../factory/).
+In-repo AI factory under [`factory/`](../factory/).
 
 ## Grok Bot (entry point)
 
-- **Peer:** `orchestrator` (Grok 4.7 via `@grok/agent-sdk`)
-- **Now:** local playground / `agent-sdk run` / `agent-sdk chat` — not Slack
-- **Later:** Slack Socket Mode (paused until a Cursor team is available)
-- Routes only; specialists: product / design / architect / implementer / reviewer
+- **Peer:** `orchestrator` (Grok 4.7)
+- **Surface now:** playground / `agent-sdk run` / `chat` (Slack deferred)
+- **Ticket SoT:** Jira (`FACTORY_JIRA_PROJECT`) — find or create, then advance stage labels
+- **Code SoT:** GitHub PRs on this fork
 
 ## Quick start
 
 ```bash
 cd factory
-./scripts/setup-factory.sh
+./scripts/setup-factory.sh --jira-project YOURKEY
+# Connect Atlassian + GitHub MCP, then:
 ./scripts/serve-factory.sh
 ```
 
-- Playground: http://127.0.0.1:3000/orchestrator/playground
-- Example: `Route issue #12 (prd_draft): <summary>`
+Playground: http://127.0.0.1:3000/orchestrator/playground
 
-Docs: [`factory/README.md`](../factory/README.md), [`factory/docs/smoke-e2e.md`](../factory/docs/smoke-e2e.md).
+Example: `I want SqlLab to show a read-only factory stage badge.`
+
+Docs: [`factory/README.md`](../factory/README.md), [`factory/docs/config-checklist.md`](../factory/docs/config-checklist.md).

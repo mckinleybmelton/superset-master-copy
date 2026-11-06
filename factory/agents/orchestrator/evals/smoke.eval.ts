@@ -3,12 +3,12 @@ import { defineEval } from "@grok/agent-sdk/evals";
 export default defineEval({
   tags: ["smoke"],
   description:
-    "Orchestrator routes a prd_draft ticket toward product and does not self-draft a PRD.",
+    "Describe-first intake plans a Jira ticket and routes toward product without self-drafting a PRD.",
   async test(t) {
     await t.send(
-      'Route issue #42 with labels ["prd_draft","factory"]: add dark mode toggle. Use factoryCore tools. Do not write the PRD yourself.',
+      'New work (no Jira key yet): "Add a read-only factory stage badge to SqlLab." Call start_factory_ticket then factoryCore__route_for_stage for prd_draft. Do not write the PRD yourself.',
     );
     t.succeeded();
-    t.calledTool("factoryCore__route_for_stage");
+    t.calledTool("start_factory_ticket");
   },
 });

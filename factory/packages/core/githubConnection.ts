@@ -1,6 +1,6 @@
 import { defineConnection } from "@grok/agent-sdk/connections";
 
-function hasCursorCreds(): boolean {
+export function hasCursorCreds(): boolean {
   return Boolean(
     process.env.CURSOR_API_KEY ||
       process.env.CURSOR_API_KEY_FILE ||

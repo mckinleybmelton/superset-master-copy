@@ -2,64 +2,47 @@
 
 In-repo multi-agent factory for an AI-first Superset workflow.
 
-**Grok Bot** is the **orchestrator** peer (Grok 4.7 via `@grok/agent-sdk`). It is the only entry point humans talk to. It routes work through specialist peers: product → design → architect → implementer → reviewer. Tickets and PRs live on this GitHub fork.
+**Grok Bot** is the **orchestrator** peer (Grok 4.7 via `@grok/agent-sdk`). You describe a change; Grok Bot finds or creates a **Jira** task, then routes specialist peers through the SDLC while updating that ticket’s stage labels. GitHub is for PRs only.
 
 ```text
-You → Grok Bot (orchestrator) → peers → GitHub Issues + PRs
+You describe change → Grok Bot → Jira find/create → peers → Jira stage updates + GitHub PR
 ```
 
 ## Entry point (now): playground / CLI
 
-Slack is **deferred** (needs a Cursor team to mint the Socket Mode app). Use the local Grok Bot surface instead:
+Slack is **deferred**. Use the local Grok Bot surface:
 
 ```bash
 cd factory
-./scripts/setup-factory.sh   # once
+./scripts/setup-factory.sh --jira-project YOURKEY   # once
+# Connect Atlassian + GitHub MCP in the Cursor dashboard, then:
 ./scripts/serve-factory.sh
 ```
 
-Then open:
-
 - Playground: http://127.0.0.1:3000/orchestrator/playground
-- Host index: http://127.0.0.1:3000/
+- Describe example: `I want SqlLab to show a read-only factory stage badge for the open ticket.`
+- Or with a key: `ASF-12: add the factory stage badge to SqlLab.`
 
-Or one-shot from another terminal (with the same Cursor login):
-
-```bash
-cd factory
-npx --yes @grok/agent-sdk@0.6.0 run --dir ./agents --slug orchestrator \
-  --message 'Route issue #12 (prd_draft): add a factory status panel to SqlLab.'
-```
-
-Interactive REPL against a running serve:
+One-shot:
 
 ```bash
-npx --yes @grok/agent-sdk@0.6.0 chat --url http://127.0.0.1:3000/orchestrator
+./scripts/chat-grok-bot.sh run 'I want a factory status panel in SqlLab settings.'
 ```
 
-## Slack (later)
+## Jira
 
-When you have a Cursor team:
-
-```bash
-./scripts/slack-create-grok-bot.sh
-# then --team <id> if prompted
-```
-
-See [docs/slack-grok-bot.md](docs/slack-grok-bot.md). Until then, Slack channel code may idle without tokens — that is expected.
+Set `FACTORY_JIRA_PROJECT` in `.env.factory`. Create labels listed in [docs/config-checklist.md](docs/config-checklist.md). Stages move on the **same** Jira issue as the factory progresses.
 
 ## Peers
 
 | Slug | Role |
 | --- | --- |
-| `orchestrator` | Grok Bot / routing only |
-| `product` | PRD + backlog |
+| `orchestrator` | Grok Bot / Jira intake + routing |
+| `product` | PRD + backlog (Jira) |
 | `design` | UX draft |
 | `architect` | Architecture |
-| `implementer` | Code + one PR |
-| `reviewer` | Review packet (no label writes) |
-
-Stage labels: `prd_draft` → `prd_review` → `design_draft` → `design_review` → `architecture_draft` → `architecture_review` → `implementation` → `pr_review` → `done`
+| `implementer` | Code + GitHub PR; sets `pr_review` on Jira |
+| `reviewer` | Review packet on Jira (no label writes) |
 
 ## Docs
 
@@ -74,6 +57,7 @@ Stage labels: `prd_draft` → `prd_review` → `design_draft` → `design_review
 npm run validate
 npm run check
 npm test --workspace=@superset-factory/core
-npx @grok/agent-sdk@0.6.0 tool call factoryCore__route_for_stage \
-  --dir ./agents --slug orchestrator --input '{"stage":"prd_draft"}' --json
+npx @grok/agent-sdk@0.6.0 tool call start_factory_ticket \
+  --dir ./agents --slug orchestrator \
+  --input '{"description":"Add a SqlLab factory status badge"}' --json
 ```

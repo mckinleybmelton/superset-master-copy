@@ -7,10 +7,12 @@
   "exports": {
     ".": "./stages.ts",
     "./extension": "./extension.ts",
-    "./githubConnection": "./githubConnection.ts"
+    "./githubConnection": "./githubConnection.ts",
+    "./atlassianConnection": "./atlassianConnection.ts",
+    "./jiraConfig": "./jiraConfig.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test stages.test.ts"
+    "test": "node --experimental-strip-types --test stages.test.ts jiraConfig.test.ts"
   },
   "dependencies": {
     "@grok/agent-sdk": "^0.6.0",

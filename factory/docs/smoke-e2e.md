@@ -1,31 +1,34 @@
-# Factory smoke E2E (Slack → PR)
+# Factory smoke E2E (describe → Jira → PR)
 
 ## Prerequisites
 
-1. `cd factory && ./scripts/setup-factory.sh`
-2. Cursor login (`agent-sdk login`) + GitHub MCP connector when posting to GitHub
-3. `./scripts/serve-factory.sh` (or hosted deploy slugs)
-4. Slack is optional/deferred — use the orchestrator playground or `agent-sdk run` / `chat`
+1. `cd factory && ./scripts/setup-factory.sh --jira-project YOURKEY`
+2. Cursor login + **Atlassian** and **GitHub** MCP connectors
+3. Jira labels created (see [config-checklist.md](config-checklist.md))
+4. `./scripts/serve-factory.sh`
+5. Slack optional/deferred
 
 ## Path
 
-1. Create a GitHub issue on this fork with labels `factory` + `prd_draft`.
-2. Talk to Grok Bot (orchestrator):
-   - Playground: http://127.0.0.1:3000/orchestrator/playground  
-   - Or: `npx @grok/agent-sdk@0.6.0 run --dir ./agents --slug orchestrator --message 'Route issue #<n> (prd_draft): <summary>'`
-3. Approve each `*_review` gate in the same chat (ask the bot to advance after you accept the artifact).
-4. At `implementation`, confirm the implementer opens one PR into `master`.
-5. At `pr_review`, confirm the reviewer posts a review packet **without** changing labels.
-6. Human merges (or rejects back to `implementation`).
+1. In the orchestrator playground, describe a change (optionally prefix with `PROJ-123:`).
+2. Confirm Grok Bot finds or creates a Jira issue at `prd_draft`, asks **product**, then stops at `prd_review`.
+3. Approve each `*_review` gate in the same chat; watch Jira labels move.
+4. At `implementation`, confirm the implementer opens one GitHub PR and comments the link on Jira with `pr_review`.
+5. At `pr_review`, confirm the reviewer posts a packet on Jira **without** changing labels.
+6. Human merges (or rejects back to `implementation` on Jira).
 
-
-## Local tool checks (no model key)
+## Local tool checks (no live Jira required)
 
 ```bash
-cd factory/agents/orchestrator
-npx @grok/agent-sdk@0.6.0 tool call factoryCore__route_for_stage --dir . --input '{"stage":"prd_draft"}' --json
-npx @grok/agent-sdk@0.6.0 tool call factoryCore__route_for_stage --dir . --input '{"stage":"prd_review"}' --json
+cd factory
+npx @grok/agent-sdk@0.6.0 tool call start_factory_ticket \
+  --dir ./agents --slug orchestrator \
+  --input '{"description":"Add a SqlLab factory status badge"}' --json
 
-cd ../implementer
-npx @grok/agent-sdk@0.6.0 tool call require_pr_before_review --dir . --input '{"labels":["implementation"]}' --json
+npx @grok/agent-sdk@0.6.0 tool call start_factory_ticket \
+  --dir ./agents --slug orchestrator \
+  --input '{"description":"ASF-12: continue the status badge work"}' --json
+
+npx @grok/agent-sdk@0.6.0 tool call factoryCore__route_for_stage \
+  --dir ./agents --slug orchestrator --input '{"stage":"prd_draft"}' --json
 ```

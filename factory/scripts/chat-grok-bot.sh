@@ -12,11 +12,12 @@ case "$MODE" in
   serve)
     echo "Starting factory peers. Open Grok Bot playground:"
     echo "  http://127.0.0.1:3000/orchestrator/playground"
+    echo "Describe a change; Grok Bot will find/create Jira and route the factory."
     echo
     exec "$ROOT/scripts/serve-factory.sh"
     ;;
   run)
-    MSG="${*:-Route issue #1 (prd_draft): describe the change.}"
+    MSG="${*:-I want SqlLab to show a read-only factory stage badge for the open ticket.}"
     exec npx --yes @grok/agent-sdk@0.6.0 run --dir ./agents --slug orchestrator --message "$MSG"
     ;;
   chat)

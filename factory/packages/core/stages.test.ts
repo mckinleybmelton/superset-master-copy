@@ -67,3 +67,24 @@ test("design alone writes design_review", () => {
   });
   assert.equal(ok.ok, true);
 });
+
+test("orchestrator may set prd_draft at intake", () => {
+  const ok = planApplyStage({
+    labels: [],
+    nextStage: "prd_draft",
+    actor: "orchestrator",
+  });
+  assert.equal(ok.ok, true);
+  if (ok.ok) {
+    assert.deepEqual(ok.add, ["prd_draft"]);
+  }
+});
+
+test("reviewer still cannot write stage labels", () => {
+  const denied = planApplyStage({
+    labels: ["prd_draft"],
+    nextStage: "prd_review",
+    actor: "reviewer",
+  });
+  assert.equal(denied.ok, false);
+});
