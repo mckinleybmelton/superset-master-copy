@@ -1,0 +1,19 @@
+{
+  "name": "product",
+  "private": true,
+  "type": "module",
+  "description": "Superset factory peer: product",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "dev": "agent-sdk dev"
+  },
+  "dependencies": {
+    "@grok/agent-sdk": "^0.6.0",
+    "zod": "^4.6.5",
+    "@superset-factory/core": "file:../../packages/core"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "6.0.3"
+  }
+}
