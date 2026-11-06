@@ -1,0 +1,374 @@
+.shell {
+  width: min(var(--max), calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 2.25rem 0 4rem;
+}
+
+.hero {
+  display: grid;
+  gap: 1rem;
+  padding: 0.5rem 0 1.75rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.75rem;
+}
+
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field select {
+  min-width: 7.5rem;
+  background: var(--bg2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+}
+
+.check {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-bottom: 0.35rem;
+}
+
+.refresh {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+}
+
+.refresh:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.headline {
+  margin: 0;
+  max-width: 16ch;
+  font-family: var(--display);
+  font-size: clamp(2rem, 4.5vw, 3.35rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.lede {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.sampleBanner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(240, 195, 106, 0.12);
+  color: var(--warn);
+  border: 1px solid rgba(240, 195, 106, 0.35);
+  font-size: 0.9rem;
+}
+
+.error {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  background: rgba(239, 139, 122, 0.12);
+  border: 1px solid rgba(239, 139, 122, 0.35);
+  color: #ffd2c8;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.kpiPrimary,
+.kpi {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.15rem;
+}
+
+.kpiPrimary {
+  background:
+    linear-gradient(145deg, rgba(200, 240, 130, 0.14), transparent 55%),
+    var(--card);
+}
+
+.kpiLabel {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.kpiValue {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 3.5vw, 3rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.kpiValueSm {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.85rem;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.kpiSub {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.panel {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 1.15rem 1.2rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.panelHead {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.panelHead h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.panelHead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.chart {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(3.2rem, 1fr);
+  gap: 0.55rem;
+  align-items: end;
+  min-height: 180px;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.barCol {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+}
+
+.barTrack {
+  width: 100%;
+  height: 140px;
+  display: flex;
+  align-items: end;
+  border-radius: 10px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.bar {
+  width: 100%;
+  border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(180deg, #dff7a8, #9fca5d);
+}
+
+.barLabel {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.barMeta {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.table td {
+  padding: 0.75rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.issueLink {
+  font-family: var(--mono);
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--accent);
+}
+
+.summary {
+  margin-top: 0.2rem;
+  color: var(--ink);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.muted,
+.mutedSm {
+  color: var(--muted);
+}
+
+.mutedSm {
+  font-size: 0.8rem;
+}
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pillOk,
+.pillWarn,
+.pillShared {
+  display: inline-flex;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pillOk {
+  background: rgba(200, 240, 130, 0.12);
+  color: var(--accent);
+}
+
+.pillWarn {
+  background: rgba(240, 195, 106, 0.14);
+  color: var(--warn);
+}
+
+.pillShared {
+  background: rgba(160, 190, 255, 0.14);
+  color: #b7c9ff;
+}
+
+.honesty {
+  margin-top: 0.5rem;
+  padding: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.honesty h2 {
+  margin: 0 0 0.5rem;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 1.15rem;
+}
+
+.honesty ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.honesty strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kpiPrimary {
+    grid-column: 1 / -1;
+  }
+
+  .headline {
+    max-width: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell {
+    width: min(var(--max), calc(100% - 1.25rem));
+  }
+
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+}
