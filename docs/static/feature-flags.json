@@ -190,6 +190,13 @@
         "description": "Enable dynamic plugin loading"
       },
       {
+        "name": "EMBEDDED_ANALYTICS_KIT",
+        "default": false,
+        "lifecycle": "testing",
+        "description": "Chart embeds, Explore lite, and the embedded analytics console. Requires EMBEDDED_SUPERSET. Off leaves dashboard embeds unchanged.",
+        "category": "security"
+      },
+      {
         "name": "ENABLE_DASHBOARD_DOWNLOAD_WEBDRIVER_SCREENSHOT",
         "default": false,
         "lifecycle": "testing",

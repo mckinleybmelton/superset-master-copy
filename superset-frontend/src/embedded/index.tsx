@@ -21,7 +21,7 @@ import 'src/public-path';
 import { Suspense, useEffect } from 'react';
 import { lazyWithRetry } from 'src/utils/lazyWithRetry';
 import { createRoot, type Root } from 'react-dom/client';
-import { BrowserRouter as Router, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
 import { Global } from '@emotion/react';
 import { t } from '@apache-superset/core/translation';
 import { makeApi } from '@superset-ui/core';
@@ -158,11 +158,36 @@ const EmbeddedRoute = () => (
   </EmbeddedContextProviders>
 );
 
+const EmbeddedChartRoute = ({
+  match,
+}: {
+  match: { params: { uuid: string } };
+}) => {
+  // Loaded on the chart route so the dashboard embed entry does not pull it in.
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  const KitPage = require('./KitPage').default;
+  return <KitPage kind="chart" uuid={match.params.uuid} />;
+};
+
+const EmbeddedExploreRoute = ({
+  match,
+}: {
+  match: { params: { uuid: string } };
+}) => {
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  const KitPage = require('./KitPage').default;
+  return <KitPage kind="explore" uuid={match.params.uuid} />;
+};
+
 const EmbeddedApp = () => (
   <Router basename={applicationRoot()}>
-    {/* todo (embedded) remove this line after uuids are deployed */}
-    <Route path="/dashboard/:idOrSlug/embedded/" component={EmbeddedRoute} />
-    <Route path="/embedded/:uuid/" component={EmbeddedRoute} />
+    <Switch>
+      <Route path="/embedded/chart/:uuid/" component={EmbeddedChartRoute} />
+      <Route path="/embedded/explore/:uuid/" component={EmbeddedExploreRoute} />
+      {/* todo (embedded) remove this line after uuids are deployed */}
+      <Route path="/dashboard/:idOrSlug/embedded/" component={EmbeddedRoute} />
+      <Route path="/embedded/:uuid/" component={EmbeddedRoute} />
+    </Switch>
   </Router>
 );
 

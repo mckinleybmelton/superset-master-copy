@@ -71,6 +71,13 @@ const ThemeList = lazyWithRetry(
   () => import(/* webpackChunkName: "ThemeList" */ 'src/pages/ThemeList'),
 );
 
+const EmbeddedAnalytics = lazyWithRetry(
+  () =>
+    import(
+      /* webpackChunkName: "EmbeddedAnalytics" */ 'src/pages/EmbeddedAnalytics'
+    ),
+);
+
 const DashboardList = lazyWithRetry(
   () =>
     import(/* webpackChunkName: "DashboardList" */ 'src/pages/DashboardList'),
@@ -255,6 +262,10 @@ export const routes: Routes = [
   { path: RoutePaths.SAVED_QUERIES, Component: SavedQueryList },
   { path: RoutePaths.CSS_TEMPLATES, Component: CssTemplateList },
   { path: RoutePaths.THEMES, Component: ThemeList },
+  ...(isFeatureEnabled(FeatureFlag.EmbeddedSuperset) &&
+  isFeatureEnabled(FeatureFlag.EmbeddedAnalyticsKit)
+    ? [{ path: RoutePaths.EMBEDDED_ANALYTICS, Component: EmbeddedAnalytics }]
+    : []),
   { path: RoutePaths.ANNOTATION_LAYERS, Component: AnnotationLayerList },
   { path: RoutePaths.ANNOTATION_LIST, Component: AnnotationList },
   { path: RoutePaths.QUERY_HISTORY, Component: QueryHistoryList },

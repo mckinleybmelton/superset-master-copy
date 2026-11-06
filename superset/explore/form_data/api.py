@@ -18,6 +18,7 @@ import logging
 
 from flask import request, Response
 from flask_appbuilder.api import expose, protect, safe
+from flask_appbuilder.hooks import before_request
 from marshmallow import ValidationError
 
 from superset.commands.explore.form_data.create import CreateFormDataCommand
@@ -47,6 +48,15 @@ class ExploreFormDataRestApi(BaseSupersetApi):
     class_permission_name = "ExploreFormDataRestApi"
     resource_name = "explore"
     openapi_spec_tag = "Explore Form Data"
+
+    @before_request
+    def block_embedded_guests(self) -> Response | None:
+        from superset import security_manager
+
+        if security_manager.is_guest_user():
+            return self.response_403()
+        return None
+
     openapi_spec_component_schemas = (FormDataPostSchema, FormDataPutSchema)
 
     @expose("/form_data", methods=("POST",))

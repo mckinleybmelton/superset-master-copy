@@ -18,6 +18,7 @@ import logging
 
 from flask import request, Response, url_for
 from flask_appbuilder.api import expose, protect, safe
+from flask_appbuilder.hooks import before_request
 from marshmallow import ValidationError
 
 from superset.commands.chart.exceptions import (
@@ -49,6 +50,16 @@ class ExplorePermalinkRestApi(BaseSupersetApi):
     class_permission_name = "ExplorePermalinkRestApi"
     resource_name = "explore"
     openapi_spec_tag = "Explore Permanent Link"
+
+    @before_request
+    def block_embedded_guests(self) -> Response | None:
+        # Embedded guests cannot open Explore permalinks.
+        from superset import security_manager
+
+        if security_manager.is_guest_user():
+            return self.response_403()
+        return None
+
     openapi_spec_component_schemas = (ExplorePermalinkStateSchema,)
 
     @expose("/permalink", methods=("POST",))

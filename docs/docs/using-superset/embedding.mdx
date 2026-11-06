@@ -186,6 +186,29 @@ The following URL parameters can be passed through the `urlParams` option in `da
 
 ---
 
+## Embedded Analytics Kit
+
+Chart embeds and Explore lite are behind `EMBEDDED_ANALYTICS_KIT`, which also requires `EMBEDDED_SUPERSET`. With the kit off, `embedDashboard` is unchanged and `embedChart` / `embedExplore` cannot load.
+
+```javascript
+import { embedChart, embedExplore } from '@superset-ui/embedded-sdk';
+
+embedChart({
+  id: 'chart-embed-uuid', // Settings → Embedded analytics
+  supersetDomain: 'https://superset.example.com',
+  mountPoint: document.getElementById('chart'),
+  fetchGuestToken: () => fetchTokenFromYourBackend(),
+  onIgnoredFilters: report => console.warn(report.ignored),
+  onIgnoredThemeKeys: keys => console.warn(keys),
+});
+```
+
+The host backend mints the guest token. Chart and explore tokens set `resources[].type` to `chart` or `explore`, set `resources[].id` to the embed UUID, and must include a `datasets` list. Locked filter values belong on `locked_filters` in that same request. The iframe cannot replace them. A filter key the operator did not publish is ignored, the chart still renders, and the iframe shows “1 filter was not applied.”
+
+Explore lite accepts a snapshot of viz type, published columns, and saved metrics. It does not accept SQL. The guest token cannot call the generic chart data API.
+
+Operators open **Settings → Embedded analytics** to mint a token, save a named dataset scope, and read 7-day usage. Usage shows counts and a hashed guest label. It does not show usernames, tokens, or row-level security clause text. Chart and Explore embeds require at least one allowed domain. Existing dashboards still treat an empty domain list as any origin.
+
 ## Embedding a Single Chart
 
 Individual charts can also be embedded standalone, outside of a dashboard, using a chart permalink. From Explore, generate a permalink for the chart, then append URL parameters to it:

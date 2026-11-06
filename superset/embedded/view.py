@@ -23,6 +23,7 @@ from flask_wtf.csrf import same_origin
 
 from superset import event_logger, is_feature_enabled
 from superset.daos.dashboard import EmbeddedDashboardDAO
+from superset.embedded.kit import is_embedded_analytics_kit_enabled, referrer_allowed
 from superset.superset_typing import FlaskResponse
 from superset.utils import json
 from superset.views.base import (
@@ -36,6 +37,93 @@ class EmbeddedView(BaseSupersetView):
     """The views for embedded resources to be rendered in an iframe"""
 
     route_base = "/embedded"
+
+    @expose("/chart/<uuid>")
+    def embedded_chart(
+        self,
+        uuid: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        return self._embedded_kit_shell(
+            uuid, kind="chart", add_extra_log_payload=add_extra_log_payload
+        )
+
+    @expose("/explore/<uuid>")
+    def embedded_explore(
+        self,
+        uuid: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        return self._embedded_kit_shell(
+            uuid, kind="explore", add_extra_log_payload=add_extra_log_payload
+        )
+
+    def _embedded_kit_shell(
+        self,
+        uuid: str,
+        kind: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        """Anonymous shell for chart and Explore lite embeds."""
+        if not is_embedded_analytics_kit_enabled():
+            abort(404)
+        from superset.daos.embedded_kit import EmbeddedChartDAO, EmbeddedExploreDAO
+        from superset.embedded.usage import record_embed_event
+
+        embed = (
+            EmbeddedChartDAO.find_by_id(uuid)
+            if kind == "chart"
+            else EmbeddedExploreDAO.find_by_id(uuid)
+        )
+        if embed is None:
+            abort(404)
+        assert embed is not None
+        if not referrer_allowed(
+            request.referrer, embed.allowed_domains, allow_empty=False
+        ):
+            record_embed_event(
+                embed_uuid=str(embed.uuid),
+                embed_kind=kind,
+                event="failure",
+                failure_reason="origin_rejected",
+            )
+            abort(403)
+        sec_fetch_dest = request.headers.get("Sec-Fetch-Dest")
+        if sec_fetch_dest and sec_fetch_dest not in {
+            "iframe",
+            "frame",
+            "document",
+            "empty",
+        }:
+            abort(403)
+        login_user(AnonymousUserMixin(), force=True)
+        add_extra_log_payload(embedded_id=str(embed.uuid), embed_kind=kind)
+        record_embed_event(embed_uuid=str(embed.uuid), embed_kind=kind, event="load")
+        bootstrap_data = {
+            "config": {
+                "GUEST_TOKEN_HEADER_NAME": current_app.config[
+                    "GUEST_TOKEN_HEADER_NAME"
+                ],
+                "GUEST_TOKEN_HEADER_MAX_BYTES": current_app.config[
+                    "GUEST_TOKEN_HEADER_MAX_BYTES"
+                ],
+            },
+            "common": common_bootstrap_payload(),
+            "embedded": {
+                "kit": kind,
+                "uuid": str(embed.uuid),
+                "allowed_domains": embed.allowed_domains,
+                "theme_id": embed.theme_id,
+            },
+        }
+        return self.render_template(
+            "superset/spa.html",
+            entry="embedded",
+            bootstrap_data=json.dumps(
+                bootstrap_data, default=json.pessimistic_json_iso_dttm_ser
+            ),
+            **get_language_pack_template_context(bootstrap_data["common"]),
+        )
 
     @expose("/<uuid>")
     @event_logger.log_this_with_extra_payload

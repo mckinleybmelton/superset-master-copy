@@ -99,6 +99,7 @@ from superset.security.guest_token import (
     get_current_guest_token_revocation_version,
     GUEST_TOKEN_REVOCATION_CLAIM,
     GuestToken,
+    GuestTokenResource,
     GuestTokenResources,
     GuestTokenResourceType,
     GuestTokenRlsRule,
@@ -2308,6 +2309,10 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         ("can_read", "Theme"),
         # Embedded dashboard support
         ("can_read", "EmbeddedDashboard"),
+        # Embedded analytics kit guest surfaces. Operator routes stay on
+        # SecurityRestApi / can_grant_guest_token and are not in this set.
+        ("can_bootstrap", "EmbeddedKitGuestRestApi"),
+        ("can_data", "EmbeddedKitGuestRestApi"),
         ("can_read", "CurrentUserRestApi"),
         # Datasource metadata for chart rendering
         ("can_get", "Datasource"),
@@ -5281,6 +5286,15 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         from superset.models.sql_lab import Query
         from superset.utils.core import shortid
 
+        if self.is_guest_user() is True and (sql is not None or query is not None):
+            raise SupersetSecurityException(
+                SupersetError(
+                    error_type=SupersetErrorType.DASHBOARD_SECURITY_ACCESS_ERROR,
+                    message=_("Guest token cannot execute SQL"),
+                    level=ErrorLevel.ERROR,
+                )
+            )
+
         # Extension hook: bypass all permission checks if an external system
         # (e.g. folder permissions) grants access to this resource.
         if bypass := current_app.config.get("EXTRA_RAISE_FOR_ACCESS_BYPASS"):
@@ -6324,8 +6338,82 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
             audience = audience()
         return audience
 
+    def _validate_kit_guest_resource(  # noqa: C901
+        self,
+        resource: GuestTokenResource,
+        datasets: Optional[list[int]],
+        locked_filters: Optional[dict[str, Any]],
+    ) -> None:
+        """Mint checks for chart and explore embeds.
+
+        ``datasets`` is required. The minter must already be able to read the
+        bound chart or dataset. Locked filter keys must be published as locked
+        and inside their bounds.
+        """
+        # pylint: disable=import-outside-toplevel
+        from superset.commands.dashboard.embedded.exceptions import (
+            EmbeddedDashboardAccessDeniedError,
+            EmbeddedDashboardNotFoundError,
+        )
+        from superset.connectors.sqla.models import SqlaTable
+        from superset.daos.embedded_kit import EmbeddedChartDAO, EmbeddedExploreDAO
+        from superset.embedded.kit import (
+            is_embedded_analytics_kit_enabled,
+            value_in_bounds,
+        )
+        from superset.models.slice import Slice
+        from superset.utils import json
+
+        if not is_embedded_analytics_kit_enabled():
+            raise EmbeddedDashboardNotFoundError()
+        if not datasets:
+            raise EmbeddedDashboardAccessDeniedError()
+        kind = resource["type"]
+        embed_id = str(resource["id"])
+        if kind == GuestTokenResourceType.CHART.value:
+            embed = EmbeddedChartDAO.find_by_id(embed_id)
+            if embed is None:
+                raise EmbeddedDashboardNotFoundError()
+            chart = self.session.query(Slice).filter_by(id=embed.chart_id).one_or_none()
+            if chart is None or chart.datasource_id not in datasets:
+                raise EmbeddedDashboardAccessDeniedError()
+            try:
+                self.raise_for_access(chart=chart)
+            except SupersetSecurityException as ex:
+                raise EmbeddedDashboardAccessDeniedError() from ex
+        else:
+            embed = EmbeddedExploreDAO.find_by_id(embed_id)
+            if embed is None:
+                raise EmbeddedDashboardNotFoundError()
+            if embed.dataset_id not in datasets:
+                raise EmbeddedDashboardAccessDeniedError()
+            dataset = (
+                self.session.query(SqlaTable)
+                .filter(SqlaTable.id == embed.dataset_id)
+                .one_or_none()
+            )
+            if dataset is None:
+                raise EmbeddedDashboardAccessDeniedError()
+            try:
+                self.raise_for_access(datasource=dataset)
+            except SupersetSecurityException as ex:
+                raise EmbeddedDashboardAccessDeniedError() from ex
+        published = json.loads(embed.filters) if embed.filters else []
+        if not isinstance(published, list):
+            published = []
+        published_locked = {
+            item.get("key"): item for item in published if item.get("mode") == "locked"
+        }
+        for key, value in (locked_filters or {}).items():
+            item = published_locked.get(key)
+            if item is None or not value_in_bounds(value, item.get("bounds")):
+                raise EmbeddedDashboardAccessDeniedError()
+
     def validate_guest_token_resources(
-        self, resources: GuestTokenResources, datasets: Optional[list[int]] = None
+        self,
+        resources: GuestTokenResources,
+        datasets: Optional[list[int]] = None,
+        locked_filters: Optional[dict[str, Any]] = None,
     ) -> None:
         # pylint: disable=import-outside-toplevel
         from superset.commands.dashboard.embedded.exceptions import (
@@ -6336,6 +6424,12 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         from superset.models.dashboard import Dashboard
 
         for resource in resources:
+            if resource["type"] in {
+                GuestTokenResourceType.CHART.value,
+                GuestTokenResourceType.EXPLORE.value,
+            }:
+                self._validate_kit_guest_resource(resource, datasets, locked_filters)
+                continue
             if resource["type"] == GuestTokenResourceType.DASHBOARD.value:
                 # TODO (embedded): remove this check once uuids are rolled out
                 dashboard = Dashboard.get(str(resource["id"]))
@@ -6411,6 +6505,7 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         resources: GuestTokenResources,
         rls: list[GuestTokenRlsRule],
         datasets: Optional[list[int]] = None,
+        locked_filters: Optional[dict[str, Any]] = None,
     ) -> bytes:
         secret = get_conf()["GUEST_TOKEN_JWT_SECRET"]
         algo = get_conf()["GUEST_TOKEN_JWT_ALGO"]
@@ -6435,6 +6530,8 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         }
         if datasets is not None:
             claims["datasets"] = datasets
+        if locked_filters:
+            claims["locked_filters"] = locked_filters
         return self.pyjwt_for_guest_token.encode(claims, secret, algorithm=algo)
 
     @staticmethod
@@ -6521,7 +6618,9 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         return token_version < get_current_guest_token_revocation_version()
 
     @staticmethod
-    def _is_guest_token_revoked_by_embedded(token: dict[str, Any]) -> bool:
+    def _is_guest_token_revoked_by_embedded(  # noqa: C901
+        token: dict[str, Any],
+    ) -> bool:
         """Return True if the token predates a revocation on any of its
         embedded-dashboard resources (``guest_token_revoked_before``).
 
@@ -6536,7 +6635,38 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         from superset.models.dashboard import Dashboard
 
         for resource in token.get("resources") or []:
-            if resource.get("type") != GuestTokenResourceType.DASHBOARD.value:
+            resource_type = resource.get("type")
+            if resource_type == GuestTokenResourceType.CHART.value:
+                from superset.daos.embedded_kit import EmbeddedChartDAO
+
+                embedded_chart = EmbeddedChartDAO.find_by_id(str(resource.get("id")))
+                revoked_before = getattr(
+                    embedded_chart, "guest_token_revoked_before", None
+                )
+                if (
+                    embedded_chart is not None
+                    and revoked_before is not None
+                    and (not issued_at or issued_at < revoked_before)
+                ):
+                    return True
+                continue
+            if resource_type == GuestTokenResourceType.EXPLORE.value:
+                from superset.daos.embedded_kit import EmbeddedExploreDAO
+
+                embedded_explore = EmbeddedExploreDAO.find_by_id(
+                    str(resource.get("id"))
+                )
+                revoked_before = getattr(
+                    embedded_explore, "guest_token_revoked_before", None
+                )
+                if (
+                    embedded_explore is not None
+                    and revoked_before is not None
+                    and (not issued_at or issued_at < revoked_before)
+                ):
+                    return True
+                continue
+            if resource_type != GuestTokenResourceType.DASHBOARD.value:
                 continue
             resource_id = str(resource.get("id"))
             # A dashboard resource id may be an embedded UUID or, during the

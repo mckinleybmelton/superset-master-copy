@@ -45,6 +45,7 @@ export enum FeatureFlag {
   DrillBy = 'DRILL_BY',
   DynamicPlugins = 'DYNAMIC_PLUGINS',
   EmbeddableCharts = 'EMBEDDABLE_CHARTS',
+  EmbeddedAnalyticsKit = 'EMBEDDED_ANALYTICS_KIT',
   EmbeddedSuperset = 'EMBEDDED_SUPERSET',
   EnableAdvancedDataTypes = 'ENABLE_ADVANCED_DATA_TYPES',
   EnableExtensions = 'ENABLE_EXTENSIONS',

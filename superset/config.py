@@ -992,6 +992,11 @@ DEFAULT_FEATURE_FLAGS: dict[str, bool] = {
     # @lifecycle: stable
     # @category: runtime_config
     "EMBEDDED_SUPERSET": False,
+    # Chart embeds, Explore lite, and the embedded analytics console.
+    # Requires EMBEDDED_SUPERSET. Off leaves dashboard embeds unchanged.
+    # @lifecycle: testing
+    # @category: security
+    "EMBEDDED_ANALYTICS_KIT": False,
     # Enable Jinja templating in SQL queries
     # @lifecycle: stable
     # @category: runtime_config

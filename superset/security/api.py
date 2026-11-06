@@ -36,6 +36,7 @@ from marshmallow import (
     RAISE,
     Schema,
     validate,
+    validates_schema,
     ValidationError,
 )
 from sqlalchemy import asc, desc
@@ -148,10 +149,41 @@ class GuestTokenCreateSchema(PermissiveSchema):
             "description": (
                 "Optional allowlist of dataset IDs the guest may access. "
                 "When omitted all datasets linked to the embedded dashboard "
-                "are accessible, preserving the default behaviour."
+                "are accessible, preserving the default behaviour. Required "
+                "for chart and explore tokens."
             )
         },
     )
+    locked_filters = fields.Dict(
+        keys=fields.String(),
+        values=fields.Raw(allow_none=True),
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": (
+                "Locked filter values minted by the host backend. "
+                "The embedded page cannot replace these."
+            )
+        },
+    )
+
+    @validates_schema
+    def require_datasets_for_kit(  # pylint: disable=unused-argument
+        self,
+        data: dict[str, Any],
+        **kwargs: Any,
+    ) -> None:
+        resources = data.get("resources") or []
+        kinds = {resource.get("type") for resource in resources}
+        if kinds & {"chart", "explore"}:
+            if len(resources) != 1:
+                raise ValidationError(
+                    "Chart and explore tokens authorize one embed", "resources"
+                )
+            if not data.get("datasets"):
+                raise ValidationError(
+                    "datasets is required for chart and explore tokens", "datasets"
+                )
 
 
 class RoleResponseSchema(PermissiveSchema):
@@ -168,6 +200,22 @@ class RolesResponseSchema(PermissiveSchema):
 
 
 guest_token_create_schema = GuestTokenCreateSchema()
+
+
+def _record_kit_mints(body: dict[str, Any]) -> None:
+    """Record chart and explore mints. Dashboard mints are left unchanged."""
+    from superset.embedded.usage import record_embed_event
+
+    user = body.get("user") or {}
+    for resource in body.get("resources") or []:
+        if resource.get("type") not in {"chart", "explore"}:
+            continue
+        record_embed_event(
+            embed_uuid=str(resource.get("id")),
+            embed_kind=str(resource.get("type")),
+            event="mint",
+            username=user.get("username"),
+        )
 
 
 class SecurityRestApi(BaseSupersetApi):
@@ -240,7 +288,9 @@ class SecurityRestApi(BaseSupersetApi):
         try:
             body = guest_token_create_schema.load(request.json)
             self.appbuilder.sm.validate_guest_token_resources(
-                body["resources"], datasets=body.get("datasets")
+                body["resources"],
+                datasets=body.get("datasets"),
+                locked_filters=body.get("locked_filters"),
             )
             guest_token_validator_hook = current_app.config.get(
                 "GUEST_TOKEN_VALIDATOR_HOOK"
@@ -257,11 +307,16 @@ class SecurityRestApi(BaseSupersetApi):
             # TODO: Add generic validation:
             # make sure username doesn't reference an existing user
             # check rls rules for validity?
+            token_kwargs: dict[str, Any] = {}
+            if "datasets" in body and body.get("datasets") is not None:
+                token_kwargs["datasets"] = body["datasets"]
+            if body.get("locked_filters"):
+                token_kwargs["locked_filters"] = body["locked_filters"]
             token = self.appbuilder.sm.create_guest_access_token(
                 body.get("user", {}),
                 body["resources"],
                 body["rls"],
-                **({"datasets": body["datasets"]} if "datasets" in body else {}),
+                **token_kwargs,
             )
             audit_payload = build_guest_token_audit_payload(
                 issuer_user_id=get_user_id(),
@@ -272,6 +327,7 @@ class SecurityRestApi(BaseSupersetApi):
                 header_budget_bytes=current_app.config["GUEST_TOKEN_HEADER_MAX_BYTES"],
             )
             logger.info("Guest token issued: %s", audit_payload)
+            _record_kit_mints(body)
             if audit_payload["header_budget_exceeded"]:
                 logger.warning(
                     "Guest token exceeds configured request-header budget: "
