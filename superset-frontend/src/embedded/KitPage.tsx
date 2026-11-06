@@ -24,7 +24,7 @@ import {
   ThemeMode,
 } from '@apache-superset/core/theme';
 import { QueryData, QueryFormData, SupersetClient } from '@superset-ui/core';
-import { Button, ButtonGroup, Loading } from '@superset-ui/core/components';
+import { Button, Loading } from '@superset-ui/core/components';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import { getThemeController } from './EmbeddedContextProviders';
 import {
@@ -145,6 +145,7 @@ export default function KitPage({ kind, uuid }: Props) {
   const [hideTitle, setHideTitle] = useState(false);
   const [chartName, setChartName] = useState('');
   const chartArea = useRef<HTMLDivElement>(null);
+  const chartRequest = useRef(0);
   const [chartHeight, setChartHeight] = useState(420);
   const [savedForm, setSavedForm] = useState<QueryFormData | null>(null);
   const [queries, setQueries] = useState<QueryData[]>([]);
@@ -245,6 +246,8 @@ export default function KitPage({ kind, uuid }: Props) {
 
   const loadChart = useCallback(
     (filters: Record<string, HostFilterValue>) => {
+      const request = chartRequest.current + 1;
+      chartRequest.current = request;
       setLoading(true);
       setError('');
       return SupersetClient.post({
@@ -255,6 +258,9 @@ export default function KitPage({ kind, uuid }: Props) {
         .then(({ json }: { json: ChartPayload }) => {
           const { result } = json;
           const ignoredFilters = result?.ignored_filters || [];
+          if (request !== chartRequest.current) {
+            return { ignored: ignoredFilters };
+          }
           setIgnored(ignoredFilters);
           setDismissed(false);
           if (result?.form_data?.viz_type) {
@@ -267,6 +273,9 @@ export default function KitPage({ kind, uuid }: Props) {
           return { ignored: ignoredFilters };
         })
         .catch(async failure => {
+          if (request !== chartRequest.current) {
+            return { ignored: [] as Ignored[] };
+          }
           const refusal = await refusalFromClientError(failure);
           const message = refusal?.message || t('The chart query failed.');
           if (refusal) {
@@ -275,7 +284,11 @@ export default function KitPage({ kind, uuid }: Props) {
           setError(message);
           return { ignored: [] as Ignored[] };
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (request === chartRequest.current) {
+            setLoading(false);
+          }
+        });
     },
     [uuid],
   );
@@ -376,9 +389,14 @@ export default function KitPage({ kind, uuid }: Props) {
       data-embed-id={uuid}
       style={{
         height: '100vh',
+        width: '100%',
+        maxWidth: '100%',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
+        padding: 16,
+        overflowX: 'hidden',
+        overflowY: 'auto',
       }}
     >
       {!dismissed && ignored.length > 0 ? (
@@ -397,7 +415,7 @@ export default function KitPage({ kind, uuid }: Props) {
         />
       ) : null}
       {!hideTitle && title ? (
-        <h1 style={{ margin: '12px 16px' }}>{title}</h1>
+        <h1 style={{ margin: '0 0 12px', maxWidth: '100%' }}>{title}</h1>
       ) : null}
       {kind === 'chart' ? (
         <>
@@ -416,23 +434,40 @@ export default function KitPage({ kind, uuid }: Props) {
       ) : null}
       {kind === 'explore' ? (
         <>
-          <ButtonGroup>
+          <div
+            data-test="viz-switcher"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+            }}
+          >
             {vizChoices.map(choice => (
               <Button
                 key={choice}
                 buttonStyle={choice === vizType ? 'primary' : 'secondary'}
                 data-test={`viz-${choice}`}
                 aria-pressed={choice === vizType}
+                style={{
+                  maxWidth: '100%',
+                  height: 'auto',
+                  whiteSpace: 'normal',
+                }}
                 onClick={() => loadExplore(choice, dimensions, metrics)}
               >
                 {choice}
               </Button>
             ))}
-          </ButtonGroup>
+          </div>
           {error ? <Alert type="error" message={error} /> : null}
           {loading ? <Loading /> : null}
           {!loading && !error ? (
-            <StarterViz vizType={vizType} rows={rows} metric={metric} />
+            <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+              <StarterViz vizType={vizType} rows={rows} metric={metric} />
+            </div>
           ) : null}
         </>
       ) : null}

@@ -82,7 +82,10 @@ function points(rows: ExploreRow[], metric?: string): Point[] {
 function TableViz({ rows }: { rows: ExploreRow[] }) {
   const columns = rows.length ? Object.keys(rows[0]) : [];
   return (
-    <div data-test="starter-viz-table">
+    <div
+      data-test="starter-viz-table"
+      style={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}
+    >
       <Table
         data={rows.map((row, index) => ({ key: index, ...row }))}
         columns={columns.map(column => ({
@@ -103,8 +106,9 @@ function BarViz({ series, colors }: { series: Point[]; colors: string[] }) {
     <svg
       data-test="starter-viz-echarts_timeseries_bar"
       aria-label={t('Bar chart')}
-      width="320"
-      height="160"
+      viewBox="0 0 320 160"
+      preserveAspectRatio="xMinYMin meet"
+      style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 320 }}
     >
       {series.map((item, index) => (
         <rect
@@ -147,8 +151,9 @@ function LineViz({
           : 'starter-viz-echarts_timeseries_line'
       }
       aria-label={filled ? t('Area chart') : t('Line chart')}
-      width="320"
-      height="160"
+      viewBox="0 0 320 160"
+      preserveAspectRatio="xMinYMin meet"
+      style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 320 }}
     >
       {filled ? (
         <polygon
@@ -178,8 +183,9 @@ function PieViz({
     <svg
       data-test="starter-viz-pie"
       aria-label={t('Pie chart')}
-      width="160"
-      height="160"
+      viewBox="0 0 160 160"
+      preserveAspectRatio="xMinYMin meet"
+      style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 160 }}
     >
       {series.map((item, index) => {
         const start = cursor;
@@ -225,7 +231,13 @@ export default function StarterViz({
     return (
       <p
         data-test="starter-viz-big_number_total"
-        style={{ color: palette[0], fontSize: 48, margin: 0 }}
+        style={{
+          color: palette[0],
+          fontSize: 48,
+          lineHeight: 1.2,
+          margin: 0,
+          maxWidth: '100%',
+        }}
       >
         {total}
       </p>
