@@ -1,8 +1,13 @@
 # Mint the Slack Grok Bot
 
+> **Paused:** `slack create` requires a Cursor team. Until you have one, use the
+> playground / CLI entry point in [`../README.md`](../README.md) instead.
+> Channel code under `agents/orchestrator/bot/channels/slack.ts` can stay idle.
+
 Grok Bot is the **orchestrator** Slack Socket Mode app. Humans talk only to this bot.
 
 ## Dev
+
 
 ```bash
 cd factory

@@ -2,23 +2,22 @@
 
 This fork hosts an in-repo AI factory under [`factory/`](../factory/).
 
-## Grok Bot
+## Grok Bot (entry point)
 
-- Slack Socket Mode bot bound to the **orchestrator** peer
-- Model: Grok 4.7 via `@grok/agent-sdk`
-- Humans `@mention` this bot only; it routes to product / design / architect / implementer / reviewer
+- **Peer:** `orchestrator` (Grok 4.7 via `@grok/agent-sdk`)
+- **Now:** local playground / `agent-sdk run` / `agent-sdk chat` — not Slack
+- **Later:** Slack Socket Mode (paused until a Cursor team is available)
+- Routes only; specialists: product / design / architect / implementer / reviewer
 
 ## Quick start
 
 ```bash
 cd factory
 ./scripts/setup-factory.sh
-# Mint Slack app (interactive):
-cd agents/orchestrator && npx @grok/agent-sdk@0.6.0 slack create --dir . --name "Superset Factory"
-cd ../..
 ./scripts/serve-factory.sh
 ```
 
-Playground: http://127.0.0.1:3000/orchestrator/playground
+- Playground: http://127.0.0.1:3000/orchestrator/playground
+- Example: `Route issue #12 (prd_draft): <summary>`
 
-Docs: [`factory/docs/smoke-e2e.md`](../factory/docs/smoke-e2e.md), [`factory/docs/config-checklist.md`](../factory/docs/config-checklist.md).
+Docs: [`factory/README.md`](../factory/README.md), [`factory/docs/smoke-e2e.md`](../factory/docs/smoke-e2e.md).

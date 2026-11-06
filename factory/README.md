@@ -2,27 +2,51 @@
 
 In-repo multi-agent factory for an AI-first Superset workflow.
 
-**Grok Bot** (Slack Socket Mode on the orchestrator) listens for mentions/DMs and routes work through specialist peers: product → design → architect → implementer → reviewer. Tickets and PRs live on this GitHub fork.
+**Grok Bot** is the **orchestrator** peer (Grok 4.7 via `@grok/agent-sdk`). It is the only entry point humans talk to. It routes work through specialist peers: product → design → architect → implementer → reviewer. Tickets and PRs live on this GitHub fork.
 
 ```text
-Slack (@Grok Bot) → orchestrator → peers → GitHub Issues + PRs
+You → Grok Bot (orchestrator) → peers → GitHub Issues + PRs
 ```
 
-## Quick start
+## Entry point (now): playground / CLI
+
+Slack is **deferred** (needs a Cursor team to mint the Socket Mode app). Use the local Grok Bot surface instead:
 
 ```bash
 cd factory
-./scripts/setup-factory.sh
-
-# Mint the Slack Grok Bot (interactive browser; Cursor account required)
-cd agents/orchestrator
-npx --yes @grok/agent-sdk@0.6.0 slack create --dir . --name "Superset Factory"
-npx --yes @grok/agent-sdk@0.6.0 slack doctor --prefix ORCHESTRATOR
-cd ../..
-
+./scripts/setup-factory.sh   # once
 ./scripts/serve-factory.sh
-# http://127.0.0.1:3000/orchestrator/playground
 ```
+
+Then open:
+
+- Playground: http://127.0.0.1:3000/orchestrator/playground
+- Host index: http://127.0.0.1:3000/
+
+Or one-shot from another terminal (with the same Cursor login):
+
+```bash
+cd factory
+npx --yes @grok/agent-sdk@0.6.0 run --dir ./agents --slug orchestrator \
+  --message 'Route issue #12 (prd_draft): add a factory status panel to SqlLab.'
+```
+
+Interactive REPL against a running serve:
+
+```bash
+npx --yes @grok/agent-sdk@0.6.0 chat --url http://127.0.0.1:3000/orchestrator
+```
+
+## Slack (later)
+
+When you have a Cursor team:
+
+```bash
+./scripts/slack-create-grok-bot.sh
+# then --team <id> if prompted
+```
+
+See [docs/slack-grok-bot.md](docs/slack-grok-bot.md). Until then, Slack channel code may idle without tokens — that is expected.
 
 ## Peers
 
@@ -42,8 +66,9 @@ Stage labels: `prd_draft` → `prd_review` → `design_draft` → `design_review
 - [config-checklist.md](docs/config-checklist.md)
 - [smoke-e2e.md](docs/smoke-e2e.md)
 - [deploy-slugs.md](docs/deploy-slugs.md)
+- [slack-grok-bot.md](docs/slack-grok-bot.md) (paused)
 
-## Verify (no API key)
+## Verify
 
 ```bash
 npm run validate
@@ -52,5 +77,3 @@ npm test --workspace=@superset-factory/core
 npx @grok/agent-sdk@0.6.0 tool call factoryCore__route_for_stage \
   --dir ./agents --slug orchestrator --input '{"stage":"prd_draft"}' --json
 ```
-
-Model turns / evals need `agent-sdk login` or `CURSOR_API_KEY`.
