@@ -5281,12 +5281,17 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         from superset import is_feature_enabled
         from superset.common.db_query_status import QueryStatus
         from superset.connectors.sqla.models import SqlaTable
+        from superset.embedded.kit import kit_guest_blocks_sql
         from superset.models.dashboard import Dashboard
         from superset.models.slice import Slice
         from superset.models.sql_lab import Query
         from superset.utils.core import shortid
 
-        if self.is_guest_user() is True and (sql is not None or query is not None):
+        if (sql is not None or query is not None) and kit_guest_blocks_sql(
+            self.get_current_guest_user_if_guest()
+        ):
+            # Chart and explore guests only. Dashboard guests stay on the
+            # existing path with the kit flag off or on.
             raise SupersetSecurityException(
                 SupersetError(
                     error_type=SupersetErrorType.DASHBOARD_SECURITY_ACCESS_ERROR,

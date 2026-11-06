@@ -16,8 +16,8 @@
 # under the License.
 """add embedded analytics kit tables
 
-Revision ID: a1b2c3d4e5f6
-Revises: b8f3a2c91d64
+Revision ID: f6e1b9c4a872
+Revises: 1072de5ed955, 3740c7bcb2c6, b8f3a2c91d64, d7cecc48bd55, e4a7c2b9d1f3
 Create Date: 2026-11-06 12:00:00.000000
 
 """
@@ -26,8 +26,14 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy_utils import UUIDType
 
-revision = "a1b2c3d4e5f6"
-down_revision = "b8f3a2c91d64"
+revision = "f6e1b9c4a872"
+down_revision = (
+    "1072de5ed955",
+    "3740c7bcb2c6",
+    "b8f3a2c91d64",
+    "d7cecc48bd55",
+    "e4a7c2b9d1f3",
+)
 
 
 def upgrade() -> None:

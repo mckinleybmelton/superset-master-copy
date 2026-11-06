@@ -33,6 +33,25 @@ KIT_RESOURCE_TYPES = {
     GuestTokenResourceType.CHART.value,
     GuestTokenResourceType.EXPLORE.value,
 }
+
+
+def kit_guest_blocks_sql(user: Any) -> bool:
+    """True when this principal is a chart or explore guest.
+
+    Dashboard guest tokens keep the previous SQL, Explore permalink, and
+    Explore form-data behavior. Turning the kit on must not change them,
+    so the stricter denials apply only to chart and explore tokens.
+    """
+    if getattr(user, "is_guest_user", False) is not True:
+        return False
+    resources = getattr(user, "resources", None) or []
+    try:
+        kinds = {str(item.get("type")) for item in resources}
+    except (AttributeError, TypeError):
+        return False
+    return bool(kinds & KIT_RESOURCE_TYPES)
+
+
 CHROME_KEYS = {
     "colorBgContainer",
     "colorText",

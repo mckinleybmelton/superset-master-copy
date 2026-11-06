@@ -52,10 +52,10 @@ def record_embed_event(
                 created_at=datetime.utcnow(),
             )
         )
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
     except Exception:  # pylint: disable=broad-except
         logger.warning("Could not record embed usage", exc_info=True)
-        db.session.rollback()
+        db.session.rollback()  # pylint: disable=consider-using-transaction
 
 
 def summarize_usage(rows: list[Any], *, range_key: str) -> dict[str, Any]:
@@ -104,5 +104,5 @@ def prune_embed_usage_events(now: datetime | None = None) -> int:
         .filter(EmbedUsageEvent.created_at < cutoff)
         .delete(synchronize_session=False)
     )
-    db.session.commit()
+    db.session.commit()  # pylint: disable=consider-using-transaction
     return int(deleted)

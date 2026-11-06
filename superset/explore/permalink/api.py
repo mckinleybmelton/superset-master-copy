@@ -53,10 +53,14 @@ class ExplorePermalinkRestApi(BaseSupersetApi):
 
     @before_request
     def block_embedded_guests(self) -> Response | None:
-        # Embedded guests cannot open Explore permalinks.
-        from superset import security_manager
+        """Chart and explore guests cannot open Explore permalinks.
 
-        if security_manager.is_guest_user():
+        Dashboard guests keep the previous behavior with the kit flag off or on.
+        """
+        from superset import security_manager
+        from superset.embedded.kit import kit_guest_blocks_sql
+
+        if kit_guest_blocks_sql(security_manager.get_current_guest_user_if_guest()):
             return self.response_403()
         return None
 

@@ -28,13 +28,13 @@ from flask_appbuilder.api import expose, protect, safe
 from superset import db, security_manager
 from superset.connectors.sqla.models import SqlaTable
 from superset.daos.embedded_kit import EmbeddedChartDAO, EmbeddedExploreDAO
+from superset.embedded.explore_query import ExploreQueryError, run_explore_snapshot
 from superset.embedded.kit import (
     is_embedded_analytics_kit_enabled,
     normalize_domains,
     validate_allowed_domains,
-    validate_explore_snapshot,
 )
-from superset.embedded.usage import range_start, summarize_usage
+from superset.embedded.usage import range_start, record_embed_event, summarize_usage
 from superset.exceptions import SupersetSecurityException
 from superset.models.embedded_dashboard import EmbeddedDashboard
 from superset.models.embedded_kit import (
@@ -172,7 +172,7 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed.hide_title = 1 if body.get("hide_title") else 0
         embed.show_download = 1 if body.get("show_download") else 0
         db.session.add(embed)
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result=_chart_row(embed))
 
     @expose("/chart/<uuid>/", methods=("GET",))
@@ -198,7 +198,7 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         if embed is None:
             return self.response_404()
         db.session.delete(embed)
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result="OK")
 
     @expose("/chart/<uuid>/revoke/", methods=("POST",))
@@ -216,7 +216,7 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed.guest_token_revoked_before = ceil(
             security_manager._get_current_epoch_time()
         )  # noqa: SLF001
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result="OK")
 
     @expose("/explore/", methods=("POST",))
@@ -250,7 +250,7 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed.initial_state = json.dumps(body.get("initial_state") or {})
         embed.filters = json.dumps(body.get("filters") or [])
         db.session.add(embed)
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result=_explore_row(embed))
 
     @expose("/explore/<uuid>/", methods=("GET",))
@@ -276,7 +276,7 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         if embed is None:
             return self.response_404()
         db.session.delete(embed)
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result="OK")
 
     @expose("/scope/", methods=("GET",))
@@ -323,14 +323,14 @@ class EmbeddedKitRestApi(BaseSupersetApi):
                 .one_or_none()
             )
             if dataset is None:
-                db.session.rollback()
+                db.session.rollback()  # pylint: disable=consider-using-transaction
                 return self.response_400(
                     message="Semantic views can't be embedded in this version."
                 )
             db.session.add(
                 EmbedScopeDataset(scope_id=scope.uuid, dataset_id=dataset.id)
             )
-        db.session.commit()
+        db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result={"uuid": str(scope.uuid), "name": scope.name})
 
 
@@ -423,7 +423,9 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
         if embed is None:
             return self.response_404()
         guest = security_manager.get_current_guest_user_if_guest()
-        resources = list(guest.resources or []) if guest else []
+        if guest is None:
+            return self.response_403()
+        resources = list(guest.resources or [])
         if not any(
             str(item.get("type")) == "explore"
             and str(item.get("id")) == str(embed.uuid)
@@ -437,39 +439,27 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
         )
         if dataset is None:
             return self.response_404()
-        allowed_viz = (
-            json.loads(embed.viz_types)
-            if embed.viz_types
-            else list(DEFAULT_EXPLORE_VIZ_TYPES)
-        )
-        columns = {column.column_name for column in dataset.columns}
-        metrics = {metric.metric_name for metric in dataset.metrics}
         try:
-            snapshot, ignored_state = validate_explore_snapshot(
+            payload = run_explore_snapshot(
+                embed,
+                dataset,
+                guest,
                 request.json or {},
-                allowed_viz=allowed_viz,
-                columns=columns,
-                metrics=metrics,
             )
         except ValueError as ex:
             return self.response_400(message=str(ex))
-        if not snapshot.get("metrics"):
-            return self.response(
-                200,
-                result={
-                    "message": "Choose a metric.",
-                    "ignored_state": ignored_state,
-                    "data": [],
-                },
-            )
-        return self.response(
-            200,
-            result={
-                "snapshot": snapshot,
-                "ignored_state": ignored_state,
-                "ignored_filters": [],
-            },
+        except SupersetSecurityException:
+            return self.response_403()
+        except ExploreQueryError as ex:
+            return self.response_400(message=str(ex))
+        payload.pop("sql", None)
+        record_embed_event(
+            embed_uuid=str(embed.uuid),
+            embed_kind="explore",
+            event="query",
+            username=(guest.guest_token.get("user") or {}).get("username"),
         )
+        return self.response(200, result=payload)
 
 
 def _chart_row(embed: EmbeddedChart) -> dict[str, Any]:
