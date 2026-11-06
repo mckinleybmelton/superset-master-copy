@@ -296,6 +296,18 @@ pre-commit run eslint            # Frontend linting
 - **Utilities**: Use helpers from `superset.migrations.shared.utils` for database compatibility
 - **Pattern**: Import utilities instead of raw SQLAlchemy operations
 
+## Cursor Cloud specific instructions
+
+Cloud Agents run Superset on the host. Docker Compose is not part of this environment.
+
+- The Python 3.12 virtualenv is `.venv` at the repo root. Activate it with `source .venv/bin/activate` before `pytest`, `superset`, or `pre-commit`.
+- Node.js 24.16.0 and npm 11.13.0 are installed in `/usr/local/bin`. Login shells prepend nvm's Node 22, and `npm ci` fails under that npm because `superset-frontend/package-lock.json` requires npm 11. Put `/usr/local/bin` first on `PATH` before frontend commands.
+- `npm run dev-server` imports the system `zstd` binary while loading its webpack config. That package is installed with the other OS dependencies.
+- The metadata database is SQLite at `~/.superset/superset.db`. The dev account is `admin` / `admin`. `SUPERSET_SECRET_KEY` is `TEST_NON_DEV_SECRET`, the same local value committed in `docker/.env`.
+- Flask listens on `http://127.0.0.1:8088`. Check it with `curl -f http://127.0.0.1:8088/health`. Open the UI at `http://127.0.0.1:9000`, where the webpack dev server proxies API requests to Flask.
+- `superset run --reload` must pass `--exclude-patterns '*/.venv/*:*/node_modules/*:*/superset-frontend/*:*/.git/*'`. Without those exclusions the reloader watches the virtualenv and spends its time on inotify events.
+- Cursor sets `core.hooksPath`. Leave it set. Run `pre-commit run` from the virtualenv; `pre-commit install-hooks` has already populated the hook environments.
+
 ## Platform-Specific Instructions
 
 - **[CLAUDE.md](CLAUDE.md)** - For Claude/Anthropic tools
