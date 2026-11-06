@@ -111,12 +111,15 @@ export async function buildDashboard(params: {
       if (t < rangeStartMs || t > rangeEndMs) continue;
     }
 
-    const cycleHours =
+    const cycleHoursRaw =
       started && completed
         ? (completed.getTime() - started.getTime()) / (60 * 60 * 1000)
         : started
-          ? (Date.now() - started.getTime()) / (60 * 60 * 1000)
+          ? (rangeEndMs - started.getTime()) / (60 * 60 * 1000)
           : null;
+    // Round so SSR payload and client formatting stay stable.
+    const cycleHours =
+      cycleHoursRaw == null ? null : Math.round(cycleHoursRaw * 10) / 10;
 
     issues.push({
       issueKey: row.issue_key,

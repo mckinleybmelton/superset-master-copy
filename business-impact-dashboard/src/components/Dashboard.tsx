@@ -8,7 +8,9 @@ function formatTokens(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return Math.round(n).toLocaleString();
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
+    Math.round(n),
+  );
 }
 
 function formatDollars(n: number | null | undefined): string {
@@ -26,9 +28,29 @@ function formatHours(h: number | null): string {
   return `${(h / 24).toFixed(1)}d`;
 }
 
+/** UTC-stable dates so SSR and the browser hydrate the same string. */
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).format(new Date(iso));
+}
+
 function formatWhen(iso: string | null): string {
   if (!iso) return "Never";
-  return new Date(iso).toLocaleString();
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(new Date(iso));
 }
 
 type DashboardProps = {
@@ -242,7 +264,9 @@ export function Dashboard({
                       <div className={styles.barTrack}>
                         <div
                           className={styles.bar}
-                          style={{ height: `${Math.max(height, 4)}%` }}
+                          style={{
+                            height: `${Math.max(Number(height.toFixed(2)), 4)}%`,
+                          }}
                           title={`${formatTokens(w.tokensPerTask)} tokens/task`}
                         />
                       </div>
@@ -301,12 +325,10 @@ export function Dashboard({
                         </div>
                       </td>
                       <td className={styles.mono}>
-                        {issue.startedAt
-                          ? new Date(issue.startedAt).toLocaleDateString()
-                          : "—"}
+                        {formatDate(issue.startedAt)}
                         {" → "}
                         {issue.completedAt
-                          ? new Date(issue.completedAt).toLocaleDateString()
+                          ? formatDate(issue.completedAt)
                           : "open"}
                       </td>
                       <td>{formatHours(issue.cycleHours)}</td>
