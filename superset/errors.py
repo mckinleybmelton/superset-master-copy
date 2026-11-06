@@ -103,6 +103,13 @@ class SupersetErrorType(StrEnum):
     # Report errors
     REPORT_NOTIFICATION_ERROR = "REPORT_NOTIFICATION_ERROR"
 
+    # Embedded analytics kit. These stay off the issue-code map so a refusal
+    # is not reported as generic issue 1011.
+    EMBED_ORIGIN_NOT_ALLOWED = "EMBED_ORIGIN_NOT_ALLOWED"
+    EMBED_TOKEN_INVALID = "EMBED_TOKEN_INVALID"  # noqa: S105
+    EMBED_DATASET_NOT_IN_SCOPE = "EMBED_DATASET_NOT_IN_SCOPE"
+    EMBED_EXPLORE_CHART_DATA_DENIED = "EMBED_EXPLORE_CHART_DATA_DENIED"
+
 
 ISSUE_CODES = {
     1000: _("The datasource is too large to query."),

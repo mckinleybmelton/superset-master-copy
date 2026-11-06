@@ -18,6 +18,30 @@
  */
 import { ReactElement } from 'react';
 import { t } from '@apache-superset/core/translation';
+import { useTheme } from '@apache-superset/core/theme';
+import { getCategoricalSchemeRegistry } from '@superset-ui/core';
+import { Table, TableSize } from '@superset-ui/core/components';
+
+function seriesColors(theme: {
+  colorPrimary?: string;
+  colorInfo?: string;
+  colorSuccess?: string;
+  colorWarning?: string;
+  colorError?: string;
+}): string[] {
+  const registered =
+    getCategoricalSchemeRegistry().get('supersetColors')?.colors;
+  if (registered?.length) {
+    return [...registered];
+  }
+  return [
+    theme.colorPrimary,
+    theme.colorInfo,
+    theme.colorSuccess,
+    theme.colorWarning,
+    theme.colorError,
+  ].filter((color): color is string => Boolean(color));
+}
 
 export const STARTER_VIZ_TYPES = [
   'table',
@@ -58,30 +82,22 @@ function points(rows: ExploreRow[], metric?: string): Point[] {
 function TableViz({ rows }: { rows: ExploreRow[] }) {
   const columns = rows.length ? Object.keys(rows[0]) : [];
   return (
-    <table data-test="starter-viz-table">
-      <thead>
-        <tr>
-          {columns.map(column => (
-            <th key={column}>{column}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, index) => (
-          <tr key={String(row[columns[0]] ?? index)}>
-            {columns.map(column => (
-              <td key={column}>
-                {row[column] == null ? '' : String(row[column])}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div data-test="starter-viz-table">
+      <Table
+        data={rows.map((row, index) => ({ key: index, ...row }))}
+        columns={columns.map(column => ({
+          title: column,
+          dataIndex: column,
+          key: column,
+        }))}
+        usePagination={false}
+        size={TableSize.Small}
+      />
+    </div>
   );
 }
 
-function BarViz({ series }: { series: Point[] }) {
+function BarViz({ series, colors }: { series: Point[]; colors: string[] }) {
   const max = Math.max(...series.map(item => item.value), 1);
   return (
     <svg
@@ -97,7 +113,7 @@ function BarViz({ series }: { series: Point[] }) {
           y={140 - (item.value / max) * 120}
           width="32"
           height={(item.value / max) * 120}
-          fill="currentColor"
+          fill={colors[index % colors.length]}
         >
           <title>{`${item.label}: ${item.value}`}</title>
         </rect>
@@ -106,7 +122,15 @@ function BarViz({ series }: { series: Point[] }) {
   );
 }
 
-function LineViz({ series, filled }: { series: Point[]; filled: boolean }) {
+function LineViz({
+  series,
+  filled,
+  colors,
+}: {
+  series: Point[];
+  filled: boolean;
+  colors: string[];
+}) {
   const max = Math.max(...series.map(item => item.value), 1);
   const coords = series.map((item, index) => {
     const x =
@@ -129,21 +153,24 @@ function LineViz({ series, filled }: { series: Point[]; filled: boolean }) {
       {filled ? (
         <polygon
           points={`16,140 ${line} 304,140`}
-          fill="currentColor"
+          fill={colors[0]}
           opacity="0.35"
         />
       ) : null}
-      <polyline
-        points={line}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
+      <polyline points={line} fill="none" stroke={colors[0]} strokeWidth="2" />
     </svg>
   );
 }
 
-function PieViz({ series }: { series: Point[] }) {
+function PieViz({
+  series,
+  colors,
+  stroke,
+}: {
+  series: Point[];
+  colors: string[];
+  stroke: string;
+}) {
   const total =
     series.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
   let cursor = 0;
@@ -154,7 +181,7 @@ function PieViz({ series }: { series: Point[] }) {
       width="160"
       height="160"
     >
-      {series.map(item => {
+      {series.map((item, index) => {
         const start = cursor;
         const sweep = (Math.max(item.value, 0) / total) * Math.PI * 2;
         cursor += sweep;
@@ -167,8 +194,8 @@ function PieViz({ series }: { series: Point[] }) {
           <path
             key={item.label}
             d={`M 80 80 L ${x1} ${y1} A 60 60 0 ${large} 1 ${x2} ${y2} Z`}
-            fill="currentColor"
-            stroke="currentColor"
+            fill={colors[index % colors.length]}
+            stroke={stroke}
           >
             <title>{`${item.label}: ${item.value}`}</title>
           </path>
@@ -183,6 +210,9 @@ export default function StarterViz({
   rows,
   metric,
 }: Props): ReactElement {
+  const theme = useTheme();
+  const colors = seriesColors(theme);
+  const palette = colors.length ? colors : [theme.colorText];
   if (!rows.length) {
     return <p data-test="starter-viz-empty">{t('No results')}</p>;
   }
@@ -192,16 +222,29 @@ export default function StarterViz({
   const series = points(rows, metric);
   if (vizType === 'big_number_total') {
     const total = series.reduce((sum, item) => sum + item.value, 0);
-    return <p data-test="starter-viz-big_number_total">{total}</p>;
+    return (
+      <p
+        data-test="starter-viz-big_number_total"
+        style={{ color: palette[0], fontSize: 48, margin: 0 }}
+      >
+        {total}
+      </p>
+    );
   }
   if (vizType === 'echarts_timeseries_line') {
-    return <LineViz series={series} filled={false} />;
+    return <LineViz series={series} filled={false} colors={palette} />;
   }
   if (vizType === 'echarts_area') {
-    return <LineViz series={series} filled />;
+    return <LineViz series={series} filled colors={palette} />;
   }
   if (vizType === 'pie') {
-    return <PieViz series={series} />;
+    return (
+      <PieViz
+        series={series}
+        colors={palette}
+        stroke={theme.colorBgContainer}
+      />
+    );
   }
-  return <BarViz series={series} />;
+  return <BarViz series={series} colors={palette} />;
 }

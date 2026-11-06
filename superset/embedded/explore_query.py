@@ -127,7 +127,7 @@ def _require_dataset_allowlist(dataset: Any, guest: Any) -> None:
         or not all(isinstance(item, int) for item in allowed)
         or dataset_id not in allowed
     ):
-        _deny("Dataset is not in the guest token allowlist")
+        _deny("This embed can't use that dataset.")
 
 
 def _snapshot_filters(
@@ -171,7 +171,7 @@ def _snapshot_filters(
 def _deny(message: str) -> None:
     raise SupersetSecurityException(
         SupersetError(
-            error_type=SupersetErrorType.DATASOURCE_SECURITY_ACCESS_ERROR,
+            error_type=SupersetErrorType.EMBED_DATASET_NOT_IN_SCOPE,
             message=message,
             level=ErrorLevel.ERROR,
         )

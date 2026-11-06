@@ -41,6 +41,39 @@ describe("embedded analytics kit sdk", () => {
     vi.clearAllMocks();
   });
 
+  test("an origin refusal rejects the embed and calls onError", async () => {
+    const mountPoint = document.createElement("div");
+    document.body.appendChild(mountPoint);
+    const onError = vi.fn();
+    const pending = embedChart({
+      id: "embed-uuid",
+      supersetDomain: "https://superset.example.com",
+      mountPoint,
+      fetchGuestToken: async () => "token",
+      onError,
+    });
+    const iframe = mountPoint.querySelector("iframe");
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "__embedded_comms__",
+          embeddedError: {
+            code: "EMBED_ORIGIN_NOT_ALLOWED",
+            message: "This embed isn't allowed on this site.",
+          },
+        },
+        source: iframe?.contentWindow,
+      }),
+    );
+    await expect(pending).rejects.toMatchObject({
+      code: "EMBED_ORIGIN_NOT_ALLOWED",
+    });
+    expect(onError).toHaveBeenCalledWith({
+      code: "EMBED_ORIGIN_NOT_ALLOWED",
+      message: "This embed isn't allowed on this site.",
+    });
+  });
+
   test("filterChrome reports keys outside the chrome allowlist", () => {
     const { applied, ignored } = filterChrome({
       colorText: "#111",

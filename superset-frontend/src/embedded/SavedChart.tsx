@@ -22,21 +22,27 @@ import { QueryData, QueryFormData, SuperChart } from '@superset-ui/core';
 type Props = {
   formData: QueryFormData;
   queries: QueryData[];
+  height: number;
 };
 
-export default function SavedChart({ formData, queries }: Props): ReactElement {
+export default function SavedChart({
+  formData,
+  queries,
+  height,
+}: Props): ReactElement {
   return (
     <div
       data-test="embedded-saved-chart"
       data-viz-type={String(formData.viz_type || '')}
       data-color-scheme={String(formData.color_scheme || '')}
+      style={{ height, width: '100%' }}
     >
       <SuperChart
         chartType={formData.viz_type}
         enableNoResults
         formData={formData}
         queriesData={queries}
-        height={360}
+        height={height}
         width="100%"
       />
     </div>

@@ -16,10 +16,11 @@
 # under the License.
 from typing import Callable
 
-from flask import abort, current_app, request
+from flask import abort, current_app, request, Response
 from flask_appbuilder import expose
 from flask_login import AnonymousUserMixin, login_user
 from flask_wtf.csrf import same_origin
+from markupsafe import escape
 
 from superset import event_logger, is_feature_enabled
 from superset.daos.dashboard import EmbeddedDashboardDAO
@@ -31,6 +32,53 @@ from superset.views.base import (
     common_bootstrap_payload,
     get_language_pack_template_context,
 )
+
+
+def embed_refusal(code: str, message: str, status: int = 403) -> Response:
+    """HTML refusal for an iframe. No stack trace and no generic issue code."""
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{escape(message)}</title>
+    <style>
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f7f8;
+        color: #1a1a1a;
+        font-family: system-ui, sans-serif;
+      }}
+      p {{
+        max-width: 28rem;
+        margin: 1.5rem;
+        text-align: center;
+        font-size: 1.125rem;
+        line-height: 1.4;
+      }}
+    </style>
+  </head>
+  <body>
+    <p data-test="embed-refusal" data-error-code="{escape(code)}">{escape(message)}</p>
+    <script>
+      parent.postMessage(
+        {{
+          type: "__embedded_comms__",
+          embeddedError: {{
+            code: {json.dumps(code)},
+            message: {json.dumps(message)},
+          }},
+        }},
+        "*",
+      );
+    </script>
+  </body>
+</html>
+"""
+    return Response(html, status=status, mimetype="text/html")
 
 
 class EmbeddedView(BaseSupersetView):
@@ -87,7 +135,10 @@ class EmbeddedView(BaseSupersetView):
                 event="failure",
                 failure_reason="origin_rejected",
             )
-            abort(403)
+            return embed_refusal(
+                "EMBED_ORIGIN_NOT_ALLOWED",
+                "This embed isn't allowed on this site.",
+            )
         sec_fetch_dest = request.headers.get("Sec-Fetch-Dest")
         if sec_fetch_dest and sec_fetch_dest not in {
             "iframe",
@@ -95,7 +146,10 @@ class EmbeddedView(BaseSupersetView):
             "document",
             "empty",
         }:
-            abort(403)
+            return embed_refusal(
+                "EMBED_ORIGIN_NOT_ALLOWED",
+                "This embed isn't allowed on this site.",
+            )
         login_user(AnonymousUserMixin(), force=True)
         add_extra_log_payload(embedded_id=str(embed.uuid), embed_kind=kind)
         record_embed_event(embed_uuid=str(embed.uuid), embed_kind=kind, event="load")

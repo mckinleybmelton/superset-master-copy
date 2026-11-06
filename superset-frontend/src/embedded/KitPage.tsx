@@ -24,7 +24,7 @@ import {
   ThemeMode,
 } from '@apache-superset/core/theme';
 import { QueryData, QueryFormData, SupersetClient } from '@superset-ui/core';
-import { Loading } from '@superset-ui/core/components';
+import { Button, ButtonGroup, Loading } from '@superset-ui/core/components';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import { getThemeController } from './EmbeddedContextProviders';
 import {
@@ -38,6 +38,7 @@ import {
   initialThemeRequest,
   registerKitHandlers,
 } from './kitBridge';
+import { refusalFromClientError, reportEmbedError } from './embedError';
 import SavedChart from './SavedChart';
 import StarterViz, {
   ExploreRow,
@@ -87,6 +88,7 @@ type ChartPayload = {
     ignored_filters?: Ignored[];
     theme?: NamedTheme | null;
     hide_title?: boolean;
+    slice_name?: string;
   };
 };
 
@@ -141,6 +143,9 @@ export default function KitPage({ kind, uuid }: Props) {
   const [namedTheme, setNamedTheme] = useState<NamedTheme | null>(null);
   const [chrome, setChrome] = useState<Record<string, string | number>>({});
   const [hideTitle, setHideTitle] = useState(false);
+  const [chartName, setChartName] = useState('');
+  const chartArea = useRef<HTMLDivElement>(null);
+  const [chartHeight, setChartHeight] = useState(420);
   const [savedForm, setSavedForm] = useState<QueryFormData | null>(null);
   const [queries, setQueries] = useState<QueryData[]>([]);
   const snapshotRef = useRef({
@@ -184,7 +189,14 @@ export default function KitPage({ kind, uuid }: Props) {
             filters: [],
           };
         })
-        .catch(() => setError(t('The dataset query failed.')))
+        .catch(async failure => {
+          const refusal = await refusalFromClientError(failure);
+          const message = refusal?.message || t('The dataset query failed.');
+          if (refusal) {
+            reportEmbedError(refusal);
+          }
+          setError(message);
+        })
         .finally(() => setLoading(false));
     },
     [uuid],
@@ -249,10 +261,18 @@ export default function KitPage({ kind, uuid }: Props) {
             setSavedForm(result.form_data);
           }
           setQueries(result?.queries || []);
+          if (result?.slice_name) {
+            setChartName(result.slice_name);
+          }
           return { ignored: ignoredFilters };
         })
-        .catch(() => {
-          setError(t('The chart query failed.'));
+        .catch(async failure => {
+          const refusal = await refusalFromClientError(failure);
+          const message = refusal?.message || t('The chart query failed.');
+          if (refusal) {
+            reportEmbedError(refusal);
+          }
+          setError(message);
           return { ignored: [] as Ignored[] };
         })
         .finally(() => setLoading(false));
@@ -275,6 +295,7 @@ export default function KitPage({ kind, uuid }: Props) {
         const { result } = json;
         setNamedTheme(result?.theme || null);
         setHideTitle(Boolean(result?.hide_title));
+        setChartName(result?.slice_name || '');
         if (result?.form_data?.viz_type) {
           setSavedForm(result.form_data);
         }
@@ -320,10 +341,24 @@ export default function KitPage({ kind, uuid }: Props) {
     });
   }, [loadChart, mode, namedTheme]);
 
-  const title = useMemo(
-    () => (kind === 'chart' ? t('Embedded chart') : t('Explore')),
-    [kind],
-  );
+  const title = useMemo(() => {
+    if (kind === 'chart') {
+      return chartName;
+    }
+    return t('Explore');
+  }, [chartName, kind]);
+
+  useEffect(() => {
+    const node = chartArea.current;
+    if (!node) {
+      return undefined;
+    }
+    const measure = () => setChartHeight(Math.max(node.clientHeight, 280));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loading, savedForm, error]);
 
   if (kitDisabled) {
     return (
@@ -336,7 +371,16 @@ export default function KitPage({ kind, uuid }: Props) {
   }
 
   return (
-    <div data-test="embedded-kit" data-embed-id={uuid}>
+    <div
+      data-test="embedded-kit"
+      data-embed-id={uuid}
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+      }}
+    >
       {!dismissed && ignored.length > 0 ? (
         <Alert
           type="warning"
@@ -352,32 +396,39 @@ export default function KitPage({ kind, uuid }: Props) {
             .join(', ')}
         />
       ) : null}
-      {hideTitle ? null : <h1>{title}</h1>}
-      <p data-test="kit-kind">{kind}</p>
+      {!hideTitle && title ? (
+        <h1 style={{ margin: '12px 16px' }}>{title}</h1>
+      ) : null}
       {kind === 'chart' ? (
         <>
           {error ? <Alert type="error" message={error} /> : null}
           {loading ? <Loading /> : null}
-          {!loading && !error && savedForm ? (
-            <SavedChart formData={savedForm} queries={queries} />
-          ) : null}
+          <div ref={chartArea} style={{ flex: 1, minHeight: 280 }}>
+            {!loading && !error && savedForm ? (
+              <SavedChart
+                formData={savedForm}
+                queries={queries}
+                height={chartHeight}
+              />
+            ) : null}
+          </div>
         </>
       ) : null}
       {kind === 'explore' ? (
         <>
-          <div>
+          <ButtonGroup>
             {vizChoices.map(choice => (
-              <button
-                type="button"
+              <Button
                 key={choice}
+                buttonStyle={choice === vizType ? 'primary' : 'secondary'}
                 data-test={`viz-${choice}`}
                 aria-pressed={choice === vizType}
                 onClick={() => loadExplore(choice, dimensions, metrics)}
               >
                 {choice}
-              </button>
+              </Button>
             ))}
-          </div>
+          </ButtonGroup>
           {error ? <Alert type="error" message={error} /> : null}
           {loading ? <Loading /> : null}
           {!loading && !error ? (

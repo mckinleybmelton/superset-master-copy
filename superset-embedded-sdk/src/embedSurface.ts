@@ -50,12 +50,26 @@ export type IgnoredFilterReport = {
 };
 
 export type EmbedErrorCode =
+  | "EMBED_ORIGIN_NOT_ALLOWED"
+  | "EMBED_TOKEN_INVALID"
+  | "EMBED_DATASET_NOT_IN_SCOPE"
+  | "EMBED_EXPLORE_CHART_DATA_DENIED"
   | "kit_disabled"
   | "token_rejected"
   | "origin_not_allowed"
   | "dataset_not_in_scope"
   | "embed_not_found"
   | "not_configured";
+
+export class EmbedRefusal extends Error {
+  code: EmbedErrorCode;
+
+  constructor(error: EmbedError) {
+    super(error.message);
+    this.name = "EmbedRefusal";
+    this.code = error.code;
+  }
+}
 
 export type EmbedError = { code: EmbedErrorCode; message: string };
 
@@ -140,6 +154,20 @@ export async function embedSurface({
   const path = surface === "chart" ? "chart" : "explore";
   let switchboard: Switchboard | undefined;
 
+  let settled = false;
+  const refusal = new Promise<EmbedError>(resolve => {
+    window.addEventListener("message", function onEmbedError(event: MessageEvent) {
+      if (event.source !== iframe.contentWindow) return;
+      const error = event.data?.embeddedError;
+      if (event.data?.type !== IFRAME_COMMS_MESSAGE_TYPE || !error?.code) return;
+      const refusalError: EmbedError = {
+        code: error.code,
+        message: error.message || "",
+      };
+      onError?.(refusalError);
+      if (!settled) resolve(refusalError);
+    });
+  });
   const ready = new Promise<void>(resolve => {
     iframe.addEventListener("load", () => {
       if (!iframe.contentWindow) return;
@@ -158,9 +186,20 @@ export async function embedSurface({
       resolve();
     });
   });
+  iframe.style.width = "100%";
+  iframe.style.minHeight = "480px";
+  iframe.style.border = "0";
+  iframe.style.display = "block";
   iframe.src = `${domain}/embedded/${path}/${id}`;
   mountPoint.replaceChildren(iframe);
-  await ready;
+  const first = await Promise.race([
+    refusal.then(error => error),
+    ready.then(() => null),
+  ]);
+  settled = true;
+  if (first) {
+    throw new EmbedRefusal(first);
+  }
 
   const sendToken = async () => {
     try {

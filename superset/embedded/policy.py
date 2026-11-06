@@ -25,6 +25,7 @@ from superset.embedded.kit import (
     KIT_RESOURCE_TYPES,
     resolve_published_filters,
 )
+from superset.errors import SupersetErrorType
 from superset.exceptions import SupersetSecurityException
 from superset.security.guest_token import GuestTokenResourceType
 from superset.utils import json
@@ -137,7 +138,10 @@ def apply_embedded_guest_query_policy(  # noqa: C901
             failure_reason="token_rejected",
             username=(guest.guest_token.get("user") or {}).get("username"),
         )
-        _deny("Explore tokens cannot use the chart data API")
+        _deny(
+            "Explore embeds can't run chart data this way.",
+            SupersetErrorType.EMBED_EXPLORE_CHART_DATA_DENIED,
+        )
     if GuestTokenResourceType.CHART.value not in kinds:
         return []
 
@@ -163,7 +167,10 @@ def apply_embedded_guest_query_policy(  # noqa: C901
             event="failure",
             failure_reason="dataset_not_in_scope",
         )
-        _deny("Dataset is not in the guest token scope")
+        _deny(
+            "This embed can't use that dataset.",
+            SupersetErrorType.EMBED_DATASET_NOT_IN_SCOPE,
+        )
 
     published = _load_json_list(embed.filters)
     token_locked = guest.guest_token.get("locked_filters") or {}
@@ -239,13 +246,16 @@ def _strip_client_sql(query_context: Any) -> None:
             extras.pop("having", None)
 
 
-def _deny(message: str) -> None:
-    from superset.errors import ErrorLevel, SupersetError, SupersetErrorType
+def _deny(
+    message: str,
+    error_type: SupersetErrorType = SupersetErrorType.DASHBOARD_SECURITY_ACCESS_ERROR,
+) -> None:
+    from superset.errors import ErrorLevel, SupersetError
 
     raise SupersetSecurityException(
         SupersetError(
             message=message,
-            error_type=SupersetErrorType.DASHBOARD_SECURITY_ACCESS_ERROR,
+            error_type=error_type,
             level=ErrorLevel.ERROR,
         )
     )

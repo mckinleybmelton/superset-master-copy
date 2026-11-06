@@ -51,6 +51,7 @@ test('saved chart renders the server viz type and series colors', () => {
         } as QueryFormData
       }
       queries={[{ data: [{ revenue: 10 }] }]}
+      height={320}
     />,
   );
 

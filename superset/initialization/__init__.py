@@ -1313,7 +1313,7 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         if self.config["SESSION_SERVER_SIDE"]:
             Session(self.superset_app)
 
-    def register_request_handlers(self) -> None:
+    def register_request_handlers(self) -> None:  # noqa: C901
         """Register app-level request handlers"""
         from flask import request, Response
 
@@ -1359,6 +1359,13 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
 
                 gc.collect()
             return response
+
+        @self.superset_app.before_request
+        def reject_invalid_embed_token() -> Any:
+            """Turn a bad guest token into a typed embed refusal."""
+            from superset.embedded.guest_errors import refusal_for_raw_guest_token
+
+            return refusal_for_raw_guest_token()
 
         @self.superset_app.before_request
         def enforce_session_validity() -> Any:

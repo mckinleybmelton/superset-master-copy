@@ -40,6 +40,7 @@ export type {
   ChromeOverrides,
   EmbedError,
   EmbedErrorCode,
+  EmbedRefusal,
   EmbeddedSurface,
   ExploreSnapshot,
   FilterValue,

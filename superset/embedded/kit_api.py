@@ -53,6 +53,13 @@ from superset.views.base_api import BaseSupersetApi, statsd_metrics
 logger = logging.getLogger(__name__)
 
 
+def _embed_error(ex: SupersetSecurityException) -> Response:
+    """Return a typed embed refusal. The message is safe to show to a guest."""
+    from superset.views.error_handling import json_error_response
+
+    return json_error_response([ex.error], status=ex.status or 403)
+
+
 def _kit_disabled() -> bool:
     return not is_embedded_analytics_kit_enabled()
 
@@ -384,6 +391,7 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
                 "theme_id": embed.theme_id,
                 "theme": saved_theme(embed.theme_id),
                 "form_data": chart.form_data if chart is not None else {},
+                "slice_name": getattr(chart, "slice_name", None),
                 "allowed_domains": embed.allowed_domains,
             },
         )
@@ -405,8 +413,8 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
             return self.response_403()
         try:
             payload = run_saved_chart(embed, request.json or {})
-        except SupersetSecurityException:
-            return self.response_403()
+        except SupersetSecurityException as ex:
+            return _embed_error(ex)
         except ExploreQueryError as ex:
             return self.response_400(message=str(ex))
         return self.response(200, result=payload)
@@ -489,8 +497,8 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
             )
         except ValueError as ex:
             return self.response_400(message=str(ex))
-        except SupersetSecurityException:
-            return self.response_403()
+        except SupersetSecurityException as ex:
+            return _embed_error(ex)
         except ExploreQueryError as ex:
             return self.response_400(message=str(ex))
         payload.pop("sql", None)

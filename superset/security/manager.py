@@ -5724,11 +5724,13 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
                 )
             )
 
-            if self._kit_chart_guest_can_query(query_context):
-                return
+        # Call the real method. A MagicMock stand-in for this manager would
+        # otherwise treat the helper as truthy and skip every later check.
+        if SupersetSecurityManager._kit_chart_guest_can_query(self, query_context):
+            return
 
-            if datasource or query_context:
-                form_data = None
+        if datasource or query_context:
+            form_data = None
 
             if query_context:
                 datasource = query_context.datasource

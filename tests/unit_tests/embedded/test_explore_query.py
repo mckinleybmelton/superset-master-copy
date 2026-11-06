@@ -144,7 +144,7 @@ def test_explore_snapshot_rejects_sql_and_other_datasets() -> None:
     with pytest.raises(ValueError, match="SQL"):
         run_explore_snapshot(_embed(), dataset, guest, {"sql": "select 1"})
     other = _guest("explore", datasets=[7])
-    with pytest.raises(SupersetSecurityException, match="allowlist"):
+    with pytest.raises(SupersetSecurityException, match="dataset"):
         run_explore_snapshot(
             _embed(),
             dataset,

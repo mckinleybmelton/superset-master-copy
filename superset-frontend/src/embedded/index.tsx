@@ -53,6 +53,7 @@ import {
   queueThemeMode,
   waitForKitHandlers,
 } from './kitBridge';
+import { refusalFromClientError, reportEmbedError } from './embedError';
 import { embeddedApi } from './api';
 import { getDataMaskChangeTrigger } from './utils';
 import { validateMessageEvent } from './originValidation';
@@ -280,7 +281,14 @@ function start() {
           const size =
             requestTokenSize === guestTokenSize ? requestTokenSize : undefined;
           logging.error('Embedded authentication failed', size);
-          showFailureMessage(guestAuthenticationMessage(size, error));
+          refusalFromClientError(error).then(refusal => {
+            if (refusal) {
+              reportEmbedError(refusal);
+              showFailureMessage(refusal.message);
+              return;
+            }
+            showFailureMessage(guestAuthenticationMessage(size, error));
+          });
           started = false;
         },
       );

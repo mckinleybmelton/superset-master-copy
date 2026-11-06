@@ -95,6 +95,7 @@ def run_saved_chart(embed: Any, body: Any) -> dict[str, Any]:
         query.pop("stacktrace", None)
     return {
         "form_data": chart.form_data,
+        "slice_name": chart.slice_name,
         "queries": queries,
         "ignored_filters": list(getattr(query_context, "ignored_filters", []) or []),
     }
