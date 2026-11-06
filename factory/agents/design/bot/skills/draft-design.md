@@ -8,4 +8,4 @@ From the approved PRD on the issue, produce:
 4. **Empty / error / loading states**
 5. **Accessibility notes**
 
-Do not set `design_review` here — use `post-design-to-issue`.
+Do not set `design_review` here — use `post-design-to-jira`.

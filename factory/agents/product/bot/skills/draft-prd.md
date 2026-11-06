@@ -13,4 +13,4 @@ Return markdown with:
 5. **Success metrics**
 6. **Open questions**
 
-Keep it implementable for Superset (Flask/React). Do not approve the PRD or set `prd_review` here — use `post-prd-to-issue` for that.
+Keep it implementable for Superset (Flask/React). Do not approve the PRD or set `prd_review` here — use `post-prd-to-jira` for that.

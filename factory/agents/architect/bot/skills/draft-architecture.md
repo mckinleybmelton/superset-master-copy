@@ -9,4 +9,4 @@ Produce:
 5. **Risks / sequencing** — what to build first
 6. **Test plan** — unit vs integration vs Playwright
 
-Do not set `architecture_review` here — use `post-architecture-to-issue`.
+Do not set `architecture_review` here — use `post-architecture-to-jira`.
