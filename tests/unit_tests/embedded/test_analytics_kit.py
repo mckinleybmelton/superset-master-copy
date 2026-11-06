@@ -27,6 +27,7 @@ from marshmallow import ValidationError
 from superset.embedded.kit import (
     guest_display_label,
     guest_label_hash,
+    referrer_allowed,
     resolve_published_filters,
     validate_allowed_domains,
     validate_explore_snapshot,
@@ -166,6 +167,25 @@ def test_usage_summary_hides_username_and_token() -> None:
     assert label.startswith("Guest ")
     assert "stan" not in label
     assert len(label.split()[1]) == 8
+
+
+def test_referrer_matches_a_stored_host_without_a_scheme() -> None:
+    assert referrer_allowed(
+        "http://127.0.0.1:8765/kit",
+        ["127.0.0.1:8765"],
+        allow_empty=False,
+    )
+    assert referrer_allowed(
+        "https://portal.example.com/app",
+        ["portal.example.com"],
+        allow_empty=False,
+    )
+    assert not referrer_allowed(
+        "http://evil.test/",
+        ["127.0.0.1:8765"],
+        allow_empty=False,
+    )
+    assert not referrer_allowed(None, ["portal.example.com"], allow_empty=False)
 
 
 def test_chart_domains_reject_empty_list() -> None:

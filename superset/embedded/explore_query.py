@@ -83,7 +83,7 @@ def run_explore_snapshot(
         (guest.guest_token or {}).get("locked_filters"),
         snapshot.get("filters") or [],
     )
-    if any(item.get("missing") for item in applied):
+    if any(item.get("missing") and item.get("mode") == "locked" for item in applied):
         _deny("A locked filter has no value")
 
     query_filters: list[QueryObjectFilterClause] = [

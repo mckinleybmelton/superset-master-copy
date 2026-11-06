@@ -19,6 +19,7 @@
 
 import { Switchboard } from "@superset-ui/switchboard";
 import { IFRAME_COMMS_MESSAGE_TYPE } from "./const";
+import { getGuestTokenRefreshTiming } from "./guestTokenRefresh";
 
 export type GuestTokenFetchFn = () => Promise<string>;
 
@@ -153,7 +154,15 @@ export async function embedSurface({
   iframe.setAttribute("sandbox", SANDBOX.join(" "));
   const path = surface === "chart" ? "chart" : "explore";
   let switchboard: Switchboard | undefined;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let refusalSeen: EmbedError | null = null;
 
+  const clearRefresh = () => {
+    if (refreshTimer !== undefined) {
+      clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+    }
+  };
   let settled = false;
   const refusal = new Promise<EmbedError>(resolve => {
     window.addEventListener("message", function onEmbedError(event: MessageEvent) {
@@ -164,26 +173,35 @@ export async function embedSurface({
         code: error.code,
         message: error.message || "",
       };
+      refusalSeen = refusalError;
       onError?.(refusalError);
       if (!settled) resolve(refusalError);
     });
   });
-  const ready = new Promise<void>(resolve => {
+  const ready = new Promise<void>((resolve, reject) => {
     iframe.addEventListener("load", () => {
-      if (!iframe.contentWindow) return;
-      const channel = new MessageChannel();
-      iframe.contentWindow.postMessage(
-        { type: IFRAME_COMMS_MESSAGE_TYPE, handshake: "port transfer" },
-        domain,
-        [channel.port2],
-      );
-      switchboard = new Switchboard({
-        port: channel.port1,
-        name: "superset-embedded-sdk",
-        debug: false,
-      });
-      switchboard.start();
-      resolve();
+      // The refusal document posts during parse, before load. Defer the
+      // success path so that message is applied before this promise settles.
+      window.setTimeout(() => {
+        if (!iframe.contentWindow) return;
+        if (refusalSeen) {
+          reject(refusalSeen);
+          return;
+        }
+        const channel = new MessageChannel();
+        iframe.contentWindow.postMessage(
+          { type: IFRAME_COMMS_MESSAGE_TYPE, handshake: "port transfer" },
+          domain,
+          [channel.port2],
+        );
+        switchboard = new Switchboard({
+          port: channel.port1,
+          name: "superset-embedded-sdk",
+          debug: false,
+        });
+        switchboard.start();
+        resolve();
+      }, 0);
     });
   });
   iframe.style.width = "100%";
@@ -192,12 +210,18 @@ export async function embedSurface({
   iframe.style.display = "block";
   iframe.src = `${domain}/embedded/${path}/${id}`;
   mountPoint.replaceChildren(iframe);
-  const first = await Promise.race([
-    refusal.then(error => error),
-    ready.then(() => null),
-  ]);
+  let first: EmbedError | null = null;
+  try {
+    first = await Promise.race([
+      refusal.then(error => error),
+      ready.then(() => null),
+    ]);
+  } catch (error) {
+    first = (error as EmbedError) || refusalSeen;
+  }
   settled = true;
   if (first) {
+    clearRefresh();
     throw new EmbedRefusal(first);
   }
 
@@ -205,6 +229,10 @@ export async function embedSurface({
     try {
       const guestToken = await fetchGuestToken();
       switchboard?.emit("guestToken", { guestToken });
+      clearRefresh();
+      refreshTimer = setTimeout(() => {
+        void sendToken();
+      }, getGuestTokenRefreshTiming(guestToken));
     } catch (error) {
       onError?.({
         code: "token_rejected",
@@ -216,6 +244,7 @@ export async function embedSurface({
 
   return {
     unmount: () => {
+      clearRefresh();
       mountPoint.replaceChildren();
     },
     setFilters: async filters => {

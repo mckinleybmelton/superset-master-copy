@@ -65,6 +65,7 @@ describe("embedded analytics kit sdk", () => {
         source: iframe?.contentWindow,
       }),
     );
+    iframe?.dispatchEvent(new Event("load"));
     await expect(pending).rejects.toMatchObject({
       code: "EMBED_ORIGIN_NOT_ALLOWED",
     });
@@ -72,6 +73,37 @@ describe("embedded analytics kit sdk", () => {
       code: "EMBED_ORIGIN_NOT_ALLOWED",
       message: "This embed isn't allowed on this site.",
     });
+  });
+
+  test("iframe load does not accept a refusal document", async () => {
+    const mountPoint = document.createElement("div");
+    document.body.appendChild(mountPoint);
+    const onError = vi.fn();
+    const pending = embedChart({
+      id: "embed-uuid",
+      supersetDomain: "https://superset.example.com",
+      mountPoint,
+      fetchGuestToken: async () => "token",
+      onError,
+    });
+    const iframe = mountPoint.querySelector("iframe");
+    iframe?.dispatchEvent(new Event("load"));
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "__embedded_comms__",
+          embeddedError: {
+            code: "EMBED_ORIGIN_NOT_ALLOWED",
+            message: "This embed isn't allowed on this site.",
+          },
+        },
+        source: iframe?.contentWindow,
+      }),
+    );
+    await expect(pending).rejects.toMatchObject({
+      code: "EMBED_ORIGIN_NOT_ALLOWED",
+    });
+    expect(onError).toHaveBeenCalled();
   });
 
   test("filterChrome reports keys outside the chrome allowlist", () => {

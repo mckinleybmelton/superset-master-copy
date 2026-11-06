@@ -64,6 +64,42 @@ def _kit_disabled() -> bool:
     return not is_embedded_analytics_kit_enabled()
 
 
+def _can_access(**kwargs: Any) -> bool:
+    """True when raise_for_access allows this object. Admins pass that check."""
+    try:
+        security_manager.raise_for_access(**kwargs)
+    except SupersetSecurityException:
+        return False
+    return True
+
+
+def _chart_by_id(chart_id: int | None) -> Any:
+    if chart_id is None:
+        return None
+    return db.session.query(Slice).filter(Slice.id == chart_id).one_or_none()
+
+
+def _dataset_by_id(dataset_id: int | None) -> Any:
+    if dataset_id is None:
+        return None
+    return db.session.query(SqlaTable).filter(SqlaTable.id == dataset_id).one_or_none()
+
+
+def _can_read_chart_embed(embed: EmbeddedChart) -> bool:
+    chart = _chart_by_id(embed.chart_id)
+    return chart is not None and _can_access(chart=chart)
+
+
+def _can_read_explore_embed(embed: EmbeddedExplore) -> bool:
+    dataset = _dataset_by_id(embed.dataset_id)
+    return dataset is not None and _can_access(datasource=dataset)
+
+
+def _can_read_dashboard_embed(embed: Any) -> bool:
+    dashboard = getattr(embed, "dashboard", None)
+    return dashboard is not None and _can_access(dashboard=dashboard)
+
+
 def _guest_owns(kind: str, embed_uuid: str) -> bool:
     """True when the current guest token names this embed."""
     guest = security_manager.get_current_guest_user_if_guest()
@@ -134,6 +170,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         range_key = request.args.get("range", "7d")
         if range_key not in {"24h", "7d", "30d"}:
             range_key = "7d"
+        if not _caller_can_read_usage(uuid):
+            return self.response_403()
         rows = (
             db.session.query(EmbedUsageEvent)
             .filter(
@@ -174,6 +212,10 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         )
         if chart is None:
             return self.response_404()
+        if str(getattr(chart, "datasource_type", "")) == "semantic_view":
+            return self.response_400(
+                message="Semantic views can't be embedded in this version."
+            )
         try:
             security_manager.raise_for_access(chart=chart)
         except SupersetSecurityException:
@@ -204,6 +246,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed = EmbeddedChartDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _can_read_chart_embed(embed):
+            return self.response_403()
         return self.response(200, result=_chart_row(embed))
 
     @expose("/chart/<uuid>/", methods=("DELETE",))
@@ -216,6 +260,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed = EmbeddedChartDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _can_read_chart_embed(embed):
+            return self.response_403()
         db.session.delete(embed)
         db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result="OK")
@@ -230,6 +276,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed = EmbeddedChartDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _can_read_chart_embed(embed):
+            return self.response_403()
         from math import ceil
 
         embed.guest_token_revoked_before = ceil(
@@ -256,6 +304,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         )
         if dataset is None:
             return self.response_404()
+        if not _can_access(datasource=dataset):
+            return self.response(403, message="You don't have access to this dataset")
         existing = (
             db.session.query(EmbeddedExplore)
             .filter(EmbeddedExplore.dataset_id == dataset.id)
@@ -282,6 +332,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed = EmbeddedExploreDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _can_read_explore_embed(embed):
+            return self.response_403()
         return self.response(200, result=_explore_row(embed))
 
     @expose("/explore/<uuid>/", methods=("DELETE",))
@@ -294,6 +346,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         embed = EmbeddedExploreDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _can_read_explore_embed(embed):
+            return self.response_403()
         db.session.delete(embed)
         db.session.commit()  # pylint: disable=consider-using-transaction
         return self.response(200, result="OK")
@@ -306,6 +360,8 @@ class EmbeddedKitRestApi(BaseSupersetApi):
         if _kit_disabled():
             return self.response_404()
         scopes = db.session.query(EmbedScope).all()
+        if not security_manager.is_admin():
+            scopes = [scope for scope in scopes if _scope_visible(scope)]
         return self.response(
             200,
             result=[
@@ -345,6 +401,11 @@ class EmbeddedKitRestApi(BaseSupersetApi):
                 db.session.rollback()  # pylint: disable=consider-using-transaction
                 return self.response_400(
                     message="Semantic views can't be embedded in this version."
+                )
+            if not _can_access(datasource=dataset):
+                db.session.rollback()  # pylint: disable=consider-using-transaction
+                return self.response(
+                    403, message="You don't have access to this dataset"
                 )
             db.session.add(
                 EmbedScopeDataset(scope_id=scope.uuid, dataset_id=dataset.id)
@@ -429,6 +490,8 @@ class EmbeddedKitGuestRestApi(BaseSupersetApi):
         embed = EmbeddedExploreDAO.find_by_id(uuid)
         if embed is None:
             return self.response_404()
+        if not _guest_owns("explore", str(embed.uuid)):
+            return self.response_403()
         dataset = (
             db.session.query(SqlaTable)
             .filter(SqlaTable.id == embed.dataset_id)
@@ -543,6 +606,31 @@ def _explore_row(embed: EmbeddedExplore) -> dict[str, Any]:
     }
 
 
+def _scope_visible(scope: EmbedScope) -> bool:
+    """A non-admin sees a scope only when they can read every dataset on it."""
+    for row in scope.datasets:
+        dataset = _dataset_by_id(row.dataset_id)
+        if dataset is None or not _can_access(datasource=dataset):
+            return False
+    return True
+
+
+def _caller_can_read_usage(embed_uuid: str) -> bool:
+    """Usage is readable only for an embed whose object the caller can read."""
+    if security_manager.is_admin():
+        return True
+    if (chart := EmbeddedChartDAO.find_by_id(embed_uuid)) is not None:
+        return _can_read_chart_embed(chart)
+    if (explore := EmbeddedExploreDAO.find_by_id(embed_uuid)) is not None:
+        return _can_read_explore_embed(explore)
+    # pylint: disable=import-outside-toplevel
+    from superset.daos.dashboard import EmbeddedDashboardDAO
+
+    if (dashboard := EmbeddedDashboardDAO.find_by_id(embed_uuid)) is not None:
+        return _can_read_dashboard_embed(dashboard)
+    return False
+
+
 def _caller_can_read_row(row: dict[str, Any]) -> bool:
     """Non-admins only see embeds they can already read."""
     try:
@@ -568,4 +656,9 @@ def _caller_can_read_row(row: dict[str, Any]) -> bool:
             return True
     except SupersetSecurityException:
         return False
-    return security_manager.is_admin()
+    if row["kind"] == "dashboard":
+        from superset.daos.dashboard import EmbeddedDashboardDAO
+
+        embed = EmbeddedDashboardDAO.find_by_id(str(row.get("uuid")))
+        return embed is not None and _can_read_dashboard_embed(embed)
+    return False

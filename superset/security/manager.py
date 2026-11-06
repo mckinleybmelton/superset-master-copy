@@ -5727,6 +5727,9 @@ class SupersetSecurityManager(  # pylint: disable=too-many-public-methods
         # Call the real method. A MagicMock stand-in for this manager would
         # otherwise treat the helper as truthy and skip every later check.
         if SupersetSecurityManager._kit_chart_guest_can_query(self, query_context):
+            guest_datasource = getattr(query_context, "datasource", None)
+            if guest_datasource is not None:
+                self.raise_for_unsupported_guest_rls(guest_datasource)
             return
 
         if datasource or query_context:

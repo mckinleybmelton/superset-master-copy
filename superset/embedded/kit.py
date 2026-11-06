@@ -109,24 +109,41 @@ def validate_allowed_domains(domains: list[str]) -> str | None:
     return None
 
 
+def _host_and_port(value: str | None) -> tuple[str, int | None] | None:
+    """Host and optional port from a URL or a stored ``host[:port]`` value."""
+    if not value:
+        return None
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return None
+    return host, parsed.port
+
+
 def referrer_allowed(
     referrer: str | None,
     domains: list[str],
     *,
     allow_empty: bool,
 ) -> bool:
-    """Same host comparison the dashboard embed shell uses.
+    """Match the referrer host to the stored allowlist.
 
-    ``allow_empty`` is true only for dashboards, where an empty list means
-    any origin. Chart and explore embeds pass false and fail closed.
+    Stored values are hosts, with an optional port. ``allow_empty`` is true
+    only for dashboards, where an empty list means any origin. Chart and
+    explore embeds pass false and fail closed.
     """
-    # pylint: disable=import-outside-toplevel
-    from flask_wtf.csrf import same_origin
-
     if not domains:
         return allow_empty
+    referrer_parts = _host_and_port(referrer)
+    if referrer_parts is None:
+        return False
+    referrer_host, referrer_port = referrer_parts
     for domain in domains:
-        if same_origin(referrer, domain):
+        allowed = _host_and_port(domain)
+        if allowed is None:
+            continue
+        host, port = allowed
+        if host == referrer_host and (port is None or port == referrer_port):
             return True
     return False
 

@@ -114,6 +114,20 @@ function themeMode(mode: ThemeModeName): ThemeMode {
   return ThemeMode.DEFAULT;
 }
 
+function snapshotFilterValue(value: HostFilterValue): string | number | null {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    value === null
+  ) {
+    return value;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  return JSON.stringify(value);
+}
+
 function isStarterViz(value: string | undefined): value is StarterVizType {
   return STARTER_VIZ_TYPES.some(item => item === value);
 }
@@ -161,23 +175,32 @@ export default function KitPage({ kind, uuid }: Props) {
       nextViz: StarterVizType,
       nextDimensions: string[],
       nextMetrics: string[],
+      hostFilters?: Record<string, HostFilterValue>,
     ) => {
+      const filters = Object.entries(hostFilters || {}).map(
+        ([column, value]) => ({
+          column,
+          operator: '==',
+          value: snapshotFilterValue(value),
+        }),
+      );
       setLoading(true);
       setError('');
-      SupersetClient.post({
+      return SupersetClient.post({
         endpoint: `/api/v1/embedded_kit/explore/${uuid}/data/`,
         body: JSON.stringify({
           vizType: nextViz,
           dimensions: nextDimensions,
           metrics: nextMetrics,
-          filters: [],
+          filters,
         }),
         headers: { 'Content-Type': 'application/json' },
       })
         .then(({ json }: { json: ExplorePayload }) => {
           const { result } = json;
+          const ignoredFilters = result?.ignored_filters || [];
           setRows(result?.data || []);
-          setIgnored(result?.ignored_filters || []);
+          setIgnored(ignoredFilters);
           const returned = result?.snapshot?.vizType;
           if (isStarterViz(returned)) {
             setVizType(returned);
@@ -187,8 +210,9 @@ export default function KitPage({ kind, uuid }: Props) {
             vizType: isStarterViz(returned) ? returned : nextViz,
             dimensions: nextDimensions,
             metrics: nextMetrics,
-            filters: [],
+            filters,
           };
+          return { ignored: ignoredFilters };
         })
         .catch(async failure => {
           const refusal = await refusalFromClientError(failure);
@@ -197,6 +221,7 @@ export default function KitPage({ kind, uuid }: Props) {
             reportEmbedError(refusal);
           }
           setError(message);
+          return { ignored: [] as Ignored[] };
         })
         .finally(() => setLoading(false));
     },
@@ -273,10 +298,10 @@ export default function KitPage({ kind, uuid }: Props) {
           return { ignored: ignoredFilters };
         })
         .catch(async failure => {
+          const refusal = await refusalFromClientError(failure);
           if (request !== chartRequest.current) {
             return { ignored: [] as Ignored[] };
           }
-          const refusal = await refusalFromClientError(failure);
           const message = refusal?.message || t('The chart query failed.');
           if (refusal) {
             reportEmbedError(refusal);
@@ -343,7 +368,10 @@ export default function KitPage({ kind, uuid }: Props) {
     setMode(themeMode(queued.mode));
     setChrome(queued.chrome);
     registerKitHandlers({
-      applyHostFilters: filters => loadChart(filters),
+      applyHostFilters: filters =>
+        kind === 'explore'
+          ? loadExplore(vizType, dimensions, metrics, filters)
+          : loadChart(filters),
       setChrome: next => {
         const stack = themeStack(null, modeName(mode), next);
         setChrome(stack.chromeConfig.theme_default.token || {});
@@ -352,7 +380,16 @@ export default function KitPage({ kind, uuid }: Props) {
       setThemeMode: next => setMode(themeMode(next)),
       getExploreState: () => snapshotRef.current,
     });
-  }, [loadChart, mode, namedTheme]);
+  }, [
+    dimensions,
+    kind,
+    loadChart,
+    loadExplore,
+    metrics,
+    mode,
+    namedTheme,
+    vizType,
+  ]);
 
   const title = useMemo(() => {
     if (kind === 'chart') {
