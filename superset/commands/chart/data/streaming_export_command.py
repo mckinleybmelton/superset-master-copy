@@ -52,7 +52,11 @@ class StreamingCSVExportCommand(BaseStreamingCSVExportCommand):
         self._query_context = query_context
 
     def validate(self) -> None:
-        """Validate permissions and query context."""
+        """Validate permissions and the kit guest query policy."""
+        # pylint: disable=import-outside-toplevel
+        from superset.embedded.policy import apply_embedded_guest_query_policy
+
+        apply_embedded_guest_query_policy(self._query_context)
         self._query_context.raise_for_access()
 
     def _get_sql_and_database(self) -> tuple[str, Any, str | None, str | None]:

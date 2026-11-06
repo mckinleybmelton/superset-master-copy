@@ -17,6 +17,7 @@
 from . import (  # noqa: F401
     core,
     dynamic_plugins,
+    embedded_kit,
     purge_audit_log,
     sql_lab,
     user_attributes,

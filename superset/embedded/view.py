@@ -16,13 +16,15 @@
 # under the License.
 from typing import Callable
 
-from flask import abort, current_app, request
+from flask import abort, current_app, request, Response
 from flask_appbuilder import expose
 from flask_login import AnonymousUserMixin, login_user
 from flask_wtf.csrf import same_origin
+from markupsafe import escape
 
 from superset import event_logger, is_feature_enabled
 from superset.daos.dashboard import EmbeddedDashboardDAO
+from superset.embedded.kit import is_embedded_analytics_kit_enabled, referrer_allowed
 from superset.superset_typing import FlaskResponse
 from superset.utils import json
 from superset.views.base import (
@@ -32,10 +34,150 @@ from superset.views.base import (
 )
 
 
+def embed_refusal(code: str, message: str, status: int = 403) -> Response:
+    """HTML refusal for an iframe. No stack trace and no generic issue code."""
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{escape(message)}</title>
+    <style>
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f7f8;
+        color: #1a1a1a;
+        font-family: system-ui, sans-serif;
+      }}
+      p {{
+        max-width: 28rem;
+        margin: 1.5rem;
+        text-align: center;
+        font-size: 1.125rem;
+        line-height: 1.4;
+      }}
+    </style>
+  </head>
+  <body>
+    <p data-test="embed-refusal" data-error-code="{escape(code)}">{escape(message)}</p>
+    <script>
+      parent.postMessage(
+        {{
+          type: "__embedded_comms__",
+          embeddedError: {{
+            code: {json.dumps(code)},
+            message: {json.dumps(message)},
+          }},
+        }},
+        "*",
+      );
+    </script>
+  </body>
+</html>
+"""
+    return Response(html, status=status, mimetype="text/html")
+
+
 class EmbeddedView(BaseSupersetView):
     """The views for embedded resources to be rendered in an iframe"""
 
     route_base = "/embedded"
+
+    @expose("/chart/<uuid>")
+    def embedded_chart(
+        self,
+        uuid: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        return self._embedded_kit_shell(
+            uuid, kind="chart", add_extra_log_payload=add_extra_log_payload
+        )
+
+    @expose("/explore/<uuid>")
+    def embedded_explore(
+        self,
+        uuid: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        return self._embedded_kit_shell(
+            uuid, kind="explore", add_extra_log_payload=add_extra_log_payload
+        )
+
+    def _embedded_kit_shell(
+        self,
+        uuid: str,
+        kind: str,
+        add_extra_log_payload: Callable[..., None] = lambda **kwargs: None,
+    ) -> FlaskResponse:
+        """Anonymous shell for chart and Explore lite embeds."""
+        if not is_embedded_analytics_kit_enabled():
+            abort(404)
+        from superset.daos.embedded_kit import EmbeddedChartDAO, EmbeddedExploreDAO
+        from superset.embedded.usage import record_embed_event
+
+        embed = (
+            EmbeddedChartDAO.find_by_id(uuid)
+            if kind == "chart"
+            else EmbeddedExploreDAO.find_by_id(uuid)
+        )
+        if embed is None:
+            abort(404)
+        assert embed is not None
+        if not referrer_allowed(
+            request.referrer, embed.allowed_domains, allow_empty=False
+        ):
+            record_embed_event(
+                embed_uuid=str(embed.uuid),
+                embed_kind=kind,
+                event="failure",
+                failure_reason="origin_rejected",
+            )
+            return embed_refusal(
+                "EMBED_ORIGIN_NOT_ALLOWED",
+                "This embed isn't allowed on this site.",
+            )
+        sec_fetch_dest = request.headers.get("Sec-Fetch-Dest")
+        if sec_fetch_dest and sec_fetch_dest not in {
+            "iframe",
+            "frame",
+            "document",
+            "empty",
+        }:
+            return embed_refusal(
+                "EMBED_ORIGIN_NOT_ALLOWED",
+                "This embed isn't allowed on this site.",
+            )
+        login_user(AnonymousUserMixin(), force=True)
+        add_extra_log_payload(embedded_id=str(embed.uuid), embed_kind=kind)
+        record_embed_event(embed_uuid=str(embed.uuid), embed_kind=kind, event="load")
+        bootstrap_data = {
+            "config": {
+                "GUEST_TOKEN_HEADER_NAME": current_app.config[
+                    "GUEST_TOKEN_HEADER_NAME"
+                ],
+                "GUEST_TOKEN_HEADER_MAX_BYTES": current_app.config[
+                    "GUEST_TOKEN_HEADER_MAX_BYTES"
+                ],
+            },
+            "common": common_bootstrap_payload(),
+            "embedded": {
+                "kit": kind,
+                "uuid": str(embed.uuid),
+                "allowed_domains": embed.allowed_domains,
+                "theme_id": embed.theme_id,
+            },
+        }
+        return self.render_template(
+            "superset/spa.html",
+            entry="embedded",
+            bootstrap_data=json.dumps(
+                bootstrap_data, default=json.pessimistic_json_iso_dttm_ser
+            ),
+            **get_language_pack_template_context(bootstrap_data["common"]),
+        )
 
     @expose("/<uuid>")
     @event_logger.log_this_with_extra_payload

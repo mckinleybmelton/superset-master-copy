@@ -18,6 +18,7 @@ import logging
 
 from flask import request, Response, url_for
 from flask_appbuilder.api import expose, protect, safe
+from flask_appbuilder.hooks import before_request
 from marshmallow import ValidationError
 
 from superset.commands.chart.exceptions import (
@@ -49,6 +50,20 @@ class ExplorePermalinkRestApi(BaseSupersetApi):
     class_permission_name = "ExplorePermalinkRestApi"
     resource_name = "explore"
     openapi_spec_tag = "Explore Permanent Link"
+
+    @before_request
+    def block_embedded_guests(self) -> Response | None:
+        """Chart and explore guests cannot open Explore permalinks.
+
+        Dashboard guests keep the previous behavior with the kit flag off or on.
+        """
+        from superset import security_manager
+        from superset.embedded.kit import kit_guest_blocks_sql
+
+        if kit_guest_blocks_sql(security_manager.get_current_guest_user_if_guest()):
+            return self.response_403()
+        return None
+
     openapi_spec_component_schemas = (ExplorePermalinkStateSchema,)
 
     @expose("/permalink", methods=("POST",))

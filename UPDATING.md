@@ -24,6 +24,7 @@ assists people when migrating to a new version.
 
 ## Next
 
+- `EMBEDDED_ANALYTICS_KIT` (default off, requires `EMBEDDED_SUPERSET`) adds guest token resource types `chart` and `explore`, chart and Explore lite embeds, and the Embedded analytics console. `embedDashboard` parameters and dashboard embed behavior are unchanged. Chart and explore tokens require a `datasets` allowlist. See `docs/docs/using-superset/embedding.mdx`.
 - Aborting or timing out an async chart-data query on Impala now cancels the
   statement that is running. The cancel used to target the `USE <database>`
   operation the driver runs when it opens a cursor, so the query ran to

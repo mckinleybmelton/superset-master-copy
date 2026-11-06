@@ -233,10 +233,12 @@ class ChartDataRestApi(ChartRestApi):
         except DatasourceNotFound:
             return self.response_404()
         except SupersetSecurityException as ex:
-            if (
-                ex.error.error_type
-                == SupersetErrorType.SEMANTIC_EXECUTION_REFUSED_ERROR
-            ):
+            if ex.error.error_type in {
+                SupersetErrorType.SEMANTIC_EXECUTION_REFUSED_ERROR,
+                SupersetErrorType.EMBED_EXPLORE_CHART_DATA_DENIED,
+                SupersetErrorType.EMBED_DATASET_NOT_IN_SCOPE,
+                SupersetErrorType.EMBED_TOKEN_INVALID,
+            }:
                 raise
             return self.response_403()
         except QueryObjectValidationError as error:
@@ -338,10 +340,12 @@ class ChartDataRestApi(ChartRestApi):
         except DatasourceNotFound:
             return self.response_404()
         except SupersetSecurityException as ex:
-            if (
-                ex.error.error_type
-                == SupersetErrorType.SEMANTIC_EXECUTION_REFUSED_ERROR
-            ):
+            if ex.error.error_type in {
+                SupersetErrorType.SEMANTIC_EXECUTION_REFUSED_ERROR,
+                SupersetErrorType.EMBED_EXPLORE_CHART_DATA_DENIED,
+                SupersetErrorType.EMBED_DATASET_NOT_IN_SCOPE,
+                SupersetErrorType.EMBED_TOKEN_INVALID,
+            }:
                 raise
             return self.response_403()
         except QueryObjectValidationError as error:

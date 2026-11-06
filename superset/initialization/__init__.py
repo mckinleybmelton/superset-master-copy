@@ -215,6 +215,10 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         from superset.datasets.metrics.api import DatasetMetricRestApi
         from superset.datasource.api import DatasourceRestApi
         from superset.embedded.api import EmbeddedDashboardRestApi
+        from superset.embedded.kit_api import (
+            EmbeddedKitGuestRestApi,
+            EmbeddedKitRestApi,
+        )
         from superset.embedded.view import EmbeddedView
         from superset.explore.api import ExploreRestApi
         from superset.explore.form_data.api import ExploreFormDataRestApi
@@ -310,6 +314,8 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         appbuilder.add_api(DatasetMetricRestApi)
         appbuilder.add_api(DatasourceRestApi)
         appbuilder.add_api(EmbeddedDashboardRestApi)
+        appbuilder.add_api(EmbeddedKitRestApi)
+        appbuilder.add_api(EmbeddedKitGuestRestApi)
         appbuilder.add_api(ExploreRestApi)
         appbuilder.add_api(ExploreFormDataRestApi)
         appbuilder.add_api(ExplorePermalinkRestApi)
@@ -614,6 +620,20 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
             category="Manage",
             category_label=_("Manage"),
         )
+
+        from superset import is_feature_enabled
+
+        if is_feature_enabled("EMBEDDED_SUPERSET") and is_feature_enabled(
+            "EMBEDDED_ANALYTICS_KIT"
+        ):
+            appbuilder.add_link(
+                "Embedded analytics",
+                label=_("Embedded analytics"),
+                href="/embedded-analytics/",
+                icon="fa-share-alt",
+                category="Security",
+                category_label=_("Security"),
+            )
 
         appbuilder.add_view(
             RowLevelSecurityView,
@@ -1293,7 +1313,7 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         if self.config["SESSION_SERVER_SIDE"]:
             Session(self.superset_app)
 
-    def register_request_handlers(self) -> None:
+    def register_request_handlers(self) -> None:  # noqa: C901
         """Register app-level request handlers"""
         from flask import request, Response
 
@@ -1339,6 +1359,13 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
 
                 gc.collect()
             return response
+
+        @self.superset_app.before_request
+        def reject_invalid_embed_token() -> Any:
+            """Turn a bad guest token into a typed embed refusal."""
+            from superset.embedded.guest_errors import refusal_for_raw_guest_token
+
+            return refusal_for_raw_guest_token()
 
         @self.superset_app.before_request
         def enforce_session_validity() -> Any:

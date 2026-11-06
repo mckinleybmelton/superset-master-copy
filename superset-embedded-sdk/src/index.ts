@@ -29,6 +29,23 @@ import {
   DEFAULT_TOKEN_REFRESH_RETRY_MS,
 } from "./guestTokenRefresh";
 import { withTimeout } from "./withTimeout";
+import { embedSurface } from "./embedSurface";
+
+export {
+  embedSurface,
+  filterChrome,
+  CHROME_KEYS,
+} from "./embedSurface";
+export type {
+  ChromeOverrides,
+  EmbedError,
+  EmbedErrorCode,
+  EmbedRefusal,
+  EmbeddedSurface,
+  ExploreSnapshot,
+  FilterValue,
+  IgnoredFilterReport,
+} from "./embedSurface";
 
 /**
  * The function to fetch a guest token from your Host App's backend server.
@@ -188,6 +205,18 @@ export type EmbeddedDashboard = {
 /**
  * Embeds a Superset dashboard into the page using an iframe.
  */
+export async function embedChart(
+  params: Omit<import("./embedSurface").EmbedSurfaceParams, "surface">,
+) {
+  return embedSurface({ ...params, surface: "chart" });
+}
+
+export async function embedExplore(
+  params: Omit<import("./embedSurface").EmbedSurfaceParams, "surface">,
+) {
+  return embedSurface({ ...params, surface: "explore" });
+}
+
 export async function embedDashboard({
   id,
   supersetDomain,

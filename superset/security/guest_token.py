@@ -70,6 +70,8 @@ def build_guest_token_audit_payload(
         # and the rule count, not the clause text.
         "rls_datasets": [rule.get("dataset") for rule in rls],
         "rls_rule_count": len(rls),
+        # Key names only. Values can be tenant identifiers.
+        "locked_filter_keys": sorted((body.get("locked_filters") or {}).keys()),
         # Hash, not the raw token, so the log can be correlated without
         # becoming a credential store.
         "token_sha256": hashlib.sha256(token.encode("utf-8")).hexdigest(),
@@ -140,6 +142,8 @@ class GuestTokenUser(TypedDict, total=False):
 
 class GuestTokenResourceType(StrEnum):
     DASHBOARD = "dashboard"
+    CHART = "chart"
+    EXPLORE = "explore"
 
 
 class GuestTokenResource(TypedDict):
@@ -177,6 +181,9 @@ class GuestToken(_GuestTokenRequired, total=False):
     # Revocation version the token was minted with. Absent on tokens minted
     # before the revocation feature was introduced.
     rev: int
+    # Operator-published locked filter values minted by the host backend.
+    # The iframe cannot replace these.
+    locked_filters: dict[str, Any]
 
 
 class GuestUser(AnonymousUserMixin):

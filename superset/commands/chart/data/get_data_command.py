@@ -105,4 +105,10 @@ class ChartDataCommand(BaseCommand):
         raise ChartDataQueryFailedError(message)
 
     def validate(self) -> None:
+        # Kit guests: lock filters and reject explore tokens before access checks.
+        # Dashboard guests are unchanged when the helper returns immediately.
+        # pylint: disable=import-outside-toplevel
+        from superset.embedded.policy import apply_embedded_guest_query_policy
+
+        apply_embedded_guest_query_policy(self._query_context)
         self._query_context.raise_for_access()

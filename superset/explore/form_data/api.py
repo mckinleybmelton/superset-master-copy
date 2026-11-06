@@ -18,6 +18,7 @@ import logging
 
 from flask import request, Response
 from flask_appbuilder.api import expose, protect, safe
+from flask_appbuilder.hooks import before_request
 from marshmallow import ValidationError
 
 from superset.commands.explore.form_data.create import CreateFormDataCommand
@@ -47,6 +48,20 @@ class ExploreFormDataRestApi(BaseSupersetApi):
     class_permission_name = "ExploreFormDataRestApi"
     resource_name = "explore"
     openapi_spec_tag = "Explore Form Data"
+
+    @before_request
+    def block_embedded_guests(self) -> Response | None:
+        """Chart and explore guests cannot read or write Explore form data.
+
+        Dashboard guests keep the previous behavior with the kit flag off or on.
+        """
+        from superset import security_manager
+        from superset.embedded.kit import kit_guest_blocks_sql
+
+        if kit_guest_blocks_sql(security_manager.get_current_guest_user_if_guest()):
+            return self.response_403()
+        return None
+
     openapi_spec_component_schemas = (FormDataPostSchema, FormDataPutSchema)
 
     @expose("/form_data", methods=("POST",))

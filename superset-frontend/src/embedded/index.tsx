@@ -21,7 +21,7 @@ import 'src/public-path';
 import { Suspense, useEffect } from 'react';
 import { lazyWithRetry } from 'src/utils/lazyWithRetry';
 import { createRoot, type Root } from 'react-dom/client';
-import { BrowserRouter as Router, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
 import { Global } from '@emotion/react';
 import { t } from '@apache-superset/core/translation';
 import { makeApi } from '@superset-ui/core';
@@ -47,6 +47,13 @@ import {
   EmbeddedContextProviders,
   getThemeController,
 } from './EmbeddedContextProviders';
+import {
+  type HostFilterValue,
+  queueChrome,
+  queueThemeMode,
+  waitForKitHandlers,
+} from './kitBridge';
+import { refusalFromClientError, reportEmbedError } from './embedError';
 import { embeddedApi } from './api';
 import { getDataMaskChangeTrigger } from './utils';
 import { validateMessageEvent } from './originValidation';
@@ -158,11 +165,44 @@ const EmbeddedRoute = () => (
   </EmbeddedContextProviders>
 );
 
+const EmbeddedChartRoute = ({
+  match,
+}: {
+  match: { params: { uuid: string } };
+}) => {
+  // Loaded on the chart route so the dashboard embed entry does not pull it in.
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  const KitPage = require('./KitPage').default;
+  return (
+    <EmbeddedContextProviders>
+      <KitPage kind="chart" uuid={match.params.uuid} />
+    </EmbeddedContextProviders>
+  );
+};
+
+const EmbeddedExploreRoute = ({
+  match,
+}: {
+  match: { params: { uuid: string } };
+}) => {
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  const KitPage = require('./KitPage').default;
+  return (
+    <EmbeddedContextProviders>
+      <KitPage kind="explore" uuid={match.params.uuid} />
+    </EmbeddedContextProviders>
+  );
+};
+
 const EmbeddedApp = () => (
   <Router basename={applicationRoot()}>
-    {/* todo (embedded) remove this line after uuids are deployed */}
-    <Route path="/dashboard/:idOrSlug/embedded/" component={EmbeddedRoute} />
-    <Route path="/embedded/:uuid/" component={EmbeddedRoute} />
+    <Switch>
+      <Route path="/embedded/chart/:uuid" component={EmbeddedChartRoute} />
+      <Route path="/embedded/explore/:uuid" component={EmbeddedExploreRoute} />
+      {/* todo (embedded) remove this line after uuids are deployed */}
+      <Route path="/dashboard/:idOrSlug/embedded/" component={EmbeddedRoute} />
+      <Route path="/embedded/:uuid/" component={EmbeddedRoute} />
+    </Switch>
   </Router>
 );
 
@@ -241,7 +281,14 @@ function start() {
           const size =
             requestTokenSize === guestTokenSize ? requestTokenSize : undefined;
           logging.error('Embedded authentication failed', size);
-          showFailureMessage(guestAuthenticationMessage(size, error));
+          refusalFromClientError(error).then(refusal => {
+            if (refusal) {
+              reportEmbedError(refusal);
+              showFailureMessage(refusal.message);
+              return;
+            }
+            showFailureMessage(guestAuthenticationMessage(size, error));
+          });
           started = false;
         },
       );
@@ -342,6 +389,25 @@ window.addEventListener('message', function embeddedPageInitializer(event) {
     );
 
     Switchboard.defineMethod(
+      'applyHostFilters',
+      async (payload: { filters?: Record<string, unknown> }) => {
+        const kit = await waitForKitHandlers();
+        return kit.applyHostFilters(
+          (payload?.filters || {}) as Record<string, HostFilterValue>,
+        );
+      },
+    );
+    Switchboard.defineMethod(
+      'setChrome',
+      (payload: { chrome?: Record<string, string | number> }) => ({
+        ignored: queueChrome(payload?.chrome || {}),
+      }),
+    );
+    Switchboard.defineMethod('getExploreState', async () => {
+      const kit = await waitForKitHandlers();
+      return kit.getExploreState();
+    });
+    Switchboard.defineMethod(
       'setThemeMode',
       (payload: { mode: 'default' | 'dark' | 'system' }) => {
         const { mode } = payload;
@@ -361,6 +427,7 @@ window.addEventListener('message', function embeddedPageInitializer(event) {
             throw new Error(`Invalid theme mode: ${mode}`);
           }
 
+          queueThemeMode(mode);
           themeController.setThemeMode(themeMode);
           return { success: true, message: `Theme mode set to ${mode}` };
         } catch (error) {

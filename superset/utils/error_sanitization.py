@@ -65,6 +65,10 @@ SAFE_ERROR_TYPES = frozenset(
         SupersetErrorType.INVALID_PAYLOAD_SCHEMA_ERROR,
         SupersetErrorType.MARSHMALLOW_ERROR,
         SupersetErrorType.CSRF_ERROR,
+        SupersetErrorType.EMBED_ORIGIN_NOT_ALLOWED,
+        SupersetErrorType.EMBED_TOKEN_INVALID,
+        SupersetErrorType.EMBED_DATASET_NOT_IN_SCOPE,
+        SupersetErrorType.EMBED_EXPLORE_CHART_DATA_DENIED,
     }
 )
 
