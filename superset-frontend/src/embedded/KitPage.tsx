@@ -51,7 +51,7 @@ type Ignored = { key: string; reason: string };
 type SnapshotFilter = {
   column: string;
   operator: string;
-  value: string | number | null;
+  value: HostFilterValue;
 };
 
 type ExplorePayload = {
@@ -114,18 +114,14 @@ function themeMode(mode: ThemeModeName): ThemeMode {
   return ThemeMode.DEFAULT;
 }
 
-function snapshotFilterValue(value: HostFilterValue): string | number | null {
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    value === null
-  ) {
-    return value;
+function exploreFilter(column: string, value: HostFilterValue): SnapshotFilter {
+  if (Array.isArray(value)) {
+    return { column, operator: 'IN', value };
   }
-  if (typeof value === 'boolean') {
-    return value ? 'true' : 'false';
+  if (value !== null && typeof value === 'object') {
+    return { column, operator: 'TEMPORAL_RANGE', value };
   }
-  return JSON.stringify(value);
+  return { column, operator: '==', value };
 }
 
 function isStarterViz(value: string | undefined): value is StarterVizType {
@@ -163,6 +159,7 @@ export default function KitPage({ kind, uuid }: Props) {
   const [chartHeight, setChartHeight] = useState(420);
   const [savedForm, setSavedForm] = useState<QueryFormData | null>(null);
   const [queries, setQueries] = useState<QueryData[]>([]);
+  const hostFiltersRef = useRef<Record<string, HostFilterValue>>({});
   const snapshotRef = useRef({
     vizType: 'table',
     dimensions: [] as string[],
@@ -177,12 +174,12 @@ export default function KitPage({ kind, uuid }: Props) {
       nextMetrics: string[],
       hostFilters?: Record<string, HostFilterValue>,
     ) => {
-      const filters = Object.entries(hostFilters || {}).map(
-        ([column, value]) => ({
-          column,
-          operator: '==',
-          value: snapshotFilterValue(value),
-        }),
+      const activeFilters = hostFilters ?? hostFiltersRef.current;
+      if (hostFilters) {
+        hostFiltersRef.current = hostFilters;
+      }
+      const filters = Object.entries(activeFilters).map(([column, value]) =>
+        exploreFilter(column, value),
       );
       setLoading(true);
       setError('');

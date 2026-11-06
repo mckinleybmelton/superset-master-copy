@@ -58,28 +58,24 @@ def load_saved_query_context(chart: Slice) -> Any:
         query_context.slice_ = chart
         return query_context
     # A chart saved before a query context exists still has viz form data.
-    # Build the query from that form data instead of loading it as a query
-    # context payload.
+    # Build the same query-context payload the chart data API loads, so time
+    # series, adhoc filters, and the x axis are not dropped.
+    # pylint: disable=import-outside-toplevel
+    from superset.charts.schemas import ChartDataQueryContextSchema
+    from superset.common.form_data_query_context import (
+        build_query_context_from_form_data,
+    )
+
     form_data = dict(chart.form_data or {})
     form_data["slice_id"] = chart.id
-    metric = form_data.get("metric")
-    metrics = form_data.get("metrics") or ([metric] if metric else [])
-    columns = form_data.get("groupby") or form_data.get("columns") or []
-    factory = QueryContextFactory()
-    query_context = factory.create(
-        current_slice=chart,
-        datasource={"id": chart.datasource_id, "type": chart.datasource_type},
-        queries=[
-            {
-                "columns": columns,
-                "metrics": metrics,
-                "filters": [],
-                "row_limit": form_data.get("row_limit") or 100,
-                "is_timeseries": False,
-            }
-        ],
-        form_data=form_data,
+    payload = build_query_context_from_form_data(
+        form_data,
+        {"id": chart.datasource_id, "type": chart.datasource_type},
+        viz_type=form_data.get("viz_type") or chart.viz_type,
     )
+    schema = ChartDataQueryContextSchema()
+    schema.query_context_factory = QueryContextFactory()
+    query_context = schema.load(payload)
     query_context.slice_ = chart
     return query_context
 

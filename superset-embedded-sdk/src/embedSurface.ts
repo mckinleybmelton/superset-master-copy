@@ -156,6 +156,7 @@ export async function embedSurface({
   let switchboard: Switchboard | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let refusalSeen: EmbedError | null = null;
+  let stopped = false;
 
   const clearRefresh = () => {
     if (refreshTimer !== undefined) {
@@ -226,14 +227,18 @@ export async function embedSurface({
   }
 
   const sendToken = async () => {
+    if (stopped) return;
     try {
       const guestToken = await fetchGuestToken();
+      if (stopped) return;
       switchboard?.emit("guestToken", { guestToken });
       clearRefresh();
+      if (stopped) return;
       refreshTimer = setTimeout(() => {
         void sendToken();
       }, getGuestTokenRefreshTiming(guestToken));
     } catch (error) {
+      if (stopped) return;
       onError?.({
         code: "token_rejected",
         message: error instanceof Error ? error.message : "token rejected",
@@ -244,6 +249,7 @@ export async function embedSurface({
 
   return {
     unmount: () => {
+      stopped = true;
       clearRefresh();
       mountPoint.replaceChildren();
     },
