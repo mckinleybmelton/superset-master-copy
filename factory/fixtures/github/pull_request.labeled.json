@@ -1,0 +1,18 @@
+{
+  "action": "labeled",
+  "number": 1,
+  "pull_request": {
+    "html_url": "https://github.com/mckinleybmelton/superset-master-copy/pull/1",
+    "title": "factory: example change",
+    "body": "Opened by the factory implementer.",
+    "draft": false,
+    "merged": false,
+    "head": { "ref": "factory/1-example", "sha": "0000000000000000000000000000000000000001" },
+    "base": { "ref": "master", "sha": "0000000000000000000000000000000000000000" },
+    "user": { "login": "factory-bot" }
+  },
+  "label": { "name": "factory" },
+  "repository": {
+    "full_name": "mckinleybmelton/superset-master-copy"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "superset-factory",
+  "private": true,
+  "type": "module",
+  "description": "In-repo Slack + Grok software factory for Apache Superset (AI-first SDLC).",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "agents/*"
+  ],
+  "scripts": {
+    "setup": "./scripts/setup-factory.sh",
+    "serve:factory": "./scripts/serve-factory.sh",
+    "validate": "npx --yes @grok/agent-sdk@0.6.0 validate --dir ./agents",
+    "serve": "npx --yes @grok/agent-sdk@0.6.0 serve --dir ./agents --dev",
+    "dev": "npx --yes @grok/agent-sdk@0.6.0 serve --dir ./agents --dev",
+    "info": "npx --yes @grok/agent-sdk@0.6.0 info --dir ./agents --json",
+    "check": "npm run check --workspace=orchestrator && npm run check --workspace=product && npm run check --workspace=design && npm run check --workspace=architect && npm run check --workspace=implementer && npm run check --workspace=reviewer",
+    "deploy:dry-run": "for d in agents/*/; do npx --yes @grok/agent-sdk@0.6.0 deploy --dir \"$d\" --dry-run --json; done"
+  }
+}

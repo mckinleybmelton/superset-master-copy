@@ -1,0 +1,25 @@
+{
+  "name": "@superset-factory/core",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Shared factory stage labels and handoff helpers.",
+  "exports": {
+    ".": "./stages.ts",
+    "./extension": "./extension.ts",
+    "./githubConnection": "./githubConnection.ts",
+    "./atlassianConnection": "./atlassianConnection.ts",
+    "./jiraConfig": "./jiraConfig.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test stages.test.ts jiraConfig.test.ts"
+  },
+  "dependencies": {
+    "@grok/agent-sdk": "^0.6.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "6.0.3"
+  }
+}

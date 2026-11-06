@@ -89,3 +89,12 @@ CLAUDE.md
 CURSOR.md
 GEMINI.md
 GPT.md
+
+# In-repo AI software factory (Agent SDK peers + prose)
+factory/AGENTS.md
+factory/agents/*/AGENTS.md
+factory/agents/*/bot/instructions.md
+factory/agents/*/bot/skills/*
+factory/packages/core/skills/*
+factory/docs/*
+factory/.env.factory.example

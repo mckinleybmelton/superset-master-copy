@@ -145,3 +145,6 @@ PROJECT.md
 oxc-custom-build/
 *.code-workspace
 *.duckdb
+factory/.env.factory
+factory/agents/*/.env.local
+factory/**/.agent-serve/
