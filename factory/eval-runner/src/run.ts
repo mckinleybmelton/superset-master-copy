@@ -56,6 +56,8 @@ export type RunOptions = {
   factoryRoot?: string;
   includeTrajectory?: boolean;
   trajectoryPayload?: unknown;
+  /** Peer whose Agent SDK batch `trajectoryPayload` belongs to. Required with a payload. */
+  trajectoryPeer?: string;
   startedAt?: Date;
   git?: EvalReport["git"];
   command?: string;
@@ -76,7 +78,9 @@ export async function runEvaluation(options: RunOptions = {}): Promise<EvalRepor
     cases.push(await executeCase(definition));
   }
   if (includeTrajectory) {
-    cases.push(...(await collectTrajectory(root, options.trajectoryPayload)));
+    cases.push(
+      ...(await collectTrajectory(root, options.trajectoryPayload, options.trajectoryPeer)),
+    );
   }
   const finishedAt = new Date();
   const git = options.git ?? (await readGit(root));
@@ -160,7 +164,16 @@ export async function writeReport(report: EvalReport, resultsDir: string): Promi
   await writeFile(path.join(resultsDir, "latest.json"), body, "utf8");
 }
 
-async function collectTrajectory(root: string, payload: unknown): Promise<EvalCaseResult[]> {
+async function collectTrajectory(
+  root: string,
+  payload: unknown,
+  trajectoryPeer: string | undefined,
+): Promise<EvalCaseResult[]> {
+  if (payload !== undefined && (trajectoryPeer === undefined || trajectoryPeer.length === 0)) {
+    throw new Error(
+      "trajectoryPayload requires trajectoryPeer. Eval ids such as smoke are shared, so a batch is applied to one peer only.",
+    );
+  }
   const credentials = credentialPresent();
   const rows: EvalCaseResult[] = [];
   for (const peer of FACTORY_PEERS) {
@@ -183,10 +196,10 @@ async function collectTrajectory(root: string, payload: unknown): Promise<EvalCa
       }),
     );
   }
-  if (payload === undefined) {
+  if (payload === undefined || trajectoryPeer === undefined) {
     return rows;
   }
-  return applyTrajectoryExecution(rows, payload);
+  return applyTrajectoryExecution(rows, payload, trajectoryPeer);
 }
 
 function defaultStatus(classification: CaseDefinition["classification"]): EvalCaseResult["status"] {

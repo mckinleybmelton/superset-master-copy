@@ -63,22 +63,66 @@ test("an Agent SDK result file replaces blocked rows with the real verdict", () 
     listed: [{ id: "smoke", description: "packet" }],
     credentials: true,
   });
-  const applied = applyTrajectoryExecution(listed, {
-    ok: false,
-    results: [
-      {
-        id: "smoke",
-        ok: false,
-        verdict: "failed",
-        durationMs: 12,
-        error: "gate missed",
-        assertions: [{ name: "calledTool", passed: false, detail: "review_packet_contract" }],
-      },
-    ],
-  });
+  const applied = applyTrajectoryExecution(
+    listed,
+    {
+      ok: false,
+      results: [
+        {
+          id: "smoke",
+          ok: false,
+          verdict: "failed",
+          durationMs: 12,
+          error: "gate missed",
+          assertions: [{ name: "calledTool", passed: false, detail: "review_packet_contract" }],
+        },
+      ],
+    },
+    "reviewer",
+  );
   const smoke = applied.find((entry) => entry.id === "trajectory.reviewer.smoke");
   assert.ok(smoke);
   assert.equal(smoke.status, "failed");
   assert.equal(smoke.classification, "executed");
   assert.match(smoke.failure?.message ?? "", /gate missed/);
+});
+
+test("a trajectory file does not copy a shared eval id onto other peers", () => {
+  const orchestrator = buildTrajectoryCases({
+    peer: "orchestrator",
+    evalFiles: ["gate.eval.ts", "smoke.eval.ts"],
+    listed: [
+      { id: "gate", description: "orchestrator gate" },
+      { id: "smoke", description: "orchestrator smoke" },
+    ],
+    credentials: true,
+  });
+  const product = buildTrajectoryCases({
+    peer: "product",
+    evalFiles: ["smoke.eval.ts"],
+    listed: [{ id: "smoke", description: "product smoke" }],
+    credentials: true,
+  });
+  const applied = applyTrajectoryExecution(
+    [...orchestrator, ...product],
+    {
+      ok: false,
+      results: [
+        { id: "smoke", ok: false, verdict: "failed", durationMs: 8, error: "orchestrator smoke failed" },
+        { id: "gate", ok: true, verdict: "passed", durationMs: 5 },
+      ],
+    },
+    "orchestrator",
+  );
+
+  const orchestratorSmoke = applied.find((entry) => entry.id === "trajectory.orchestrator.smoke");
+  const orchestratorGate = applied.find((entry) => entry.id === "trajectory.orchestrator.gate");
+  const productSmoke = applied.find((entry) => entry.id === "trajectory.product.smoke");
+  assert.equal(orchestratorSmoke?.status, "failed");
+  assert.equal(orchestratorSmoke?.classification, "executed");
+  assert.equal(orchestratorGate?.status, "passed");
+  assert.equal(orchestratorGate?.classification, "executed");
+  assert.equal(productSmoke?.status, "blocked");
+  assert.equal(productSmoke?.classification, "blocked");
+  assert.equal(productSmoke?.failure, null);
 });

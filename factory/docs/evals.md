@@ -34,10 +34,10 @@ Listed cases are `blocked` and have no score. To attach a real Agent SDK batch y
 
 ```bash
 npx @grok/agent-sdk@0.6.0 eval --dir agents/orchestrator --json --no-stream --no-artifacts --out /tmp/orchestrator-evals.json
-npm run evals -- --trajectory-file /tmp/orchestrator-evals.json
+npm run evals -- --trajectory-peer orchestrator --trajectory-file /tmp/orchestrator-evals.json
 ```
 
-`--trajectory-file` must be one Agent SDK `eval --json` document. Verdicts in that file replace the matching blocked rows. Cases absent from the file stay blocked. Do not hand-edit scores.
+`--trajectory-file` must be one Agent SDK `eval --json` document, and `--trajectory-peer` must be the peer that produced it (`orchestrator`, `product`, `design`, `architect`, `implementer`, or `reviewer`). Verdicts replace blocked rows for that peer only. The same eval id, such as `smoke`, exists on several peers, so a file is never applied by id alone. Cases absent from the file stay blocked. Do not hand-edit scores.
 
 `--skip-trajectory` omits the list. Use it when the Agent SDK binary is not installed.
 

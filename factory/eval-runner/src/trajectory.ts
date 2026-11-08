@@ -65,9 +65,19 @@ export function buildTrajectoryCases(input: {
   return [discovery, ...blocked];
 }
 
+export function isFactoryPeer(value: string): value is (typeof FACTORY_PEERS)[number] {
+  return (FACTORY_PEERS as readonly string[]).includes(value);
+}
+
+/**
+ * Apply one Agent SDK batch to a single peer.
+ * Eval ids such as `smoke` are repeated across peers, so matching on id alone
+ * would copy one peer's verdict onto the others.
+ */
 export function applyTrajectoryExecution(
   cases: readonly EvalCaseResult[],
   payload: unknown,
+  peer: string,
 ): EvalCaseResult[] {
   const results = executionRows(payload);
   const byId = new Map(results.map((row) => [row.id, row]));
@@ -75,11 +85,11 @@ export function applyTrajectoryExecution(
     if (entry.classification !== "blocked" || !entry.evidence || typeof entry.evidence !== "object") {
       return entry;
     }
-    const evalId = (entry.evidence as { evalId?: unknown }).evalId;
-    if (typeof evalId !== "string") {
+    const evidence = entry.evidence as { evalId?: unknown; peer?: unknown };
+    if (evidence.peer !== peer || typeof evidence.evalId !== "string") {
       return entry;
     }
-    const row = byId.get(evalId);
+    const row = byId.get(evidence.evalId);
     if (!row) {
       return entry;
     }

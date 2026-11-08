@@ -21,21 +21,24 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { defaultResultsDir, factoryRoot } from "./paths.ts";
 import { runEvaluation, writeReport } from "./run.ts";
+import { FACTORY_PEERS, isFactoryPeer } from "./trajectory.ts";
 
 type Flags = {
   out: string;
   skipTrajectory: boolean;
   trajectoryFile: string | null;
+  trajectoryPeer: string | null;
   help: boolean;
 };
 
 const flags = parseArgs(process.argv.slice(2));
 if (flags.help) {
-  process.stdout.write(`Usage: npm run evals -- [--out dir] [--skip-trajectory] [--trajectory-file results.json]
+  process.stdout.write(`Usage: npm run evals -- [--out dir] [--skip-trajectory] [--trajectory-peer <peer> --trajectory-file results.json]
 
 Writes factory/eval-results/latest.json and runs/<runId>/report.json.
 Scored checks call factory tools in-process. Model trajectory evals are listed
-and left blocked unless --trajectory-file points at an Agent SDK eval --json file.
+and left blocked unless --trajectory-file is paired with --trajectory-peer.
+Peers: ${FACTORY_PEERS.join(", ")}.
 `);
   process.exit(0);
 }
@@ -48,7 +51,8 @@ const report = await runEvaluation({
   factoryRoot: root,
   includeTrajectory: !flags.skipTrajectory,
   trajectoryPayload: payload,
-  command: flags.skipTrajectory ? "npm run evals -- --skip-trajectory" : "npm run evals",
+  trajectoryPeer: flags.trajectoryPeer ?? undefined,
+  command: commandOf(flags),
 });
 await writeReport(report, flags.out);
 process.stdout.write(
@@ -62,6 +66,7 @@ function parseArgs(argv: string[]): Flags {
     out: defaultResultsDir(),
     skipTrajectory: false,
     trajectoryFile: null,
+    trajectoryPeer: null,
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -84,12 +89,42 @@ function parseArgs(argv: string[]): Flags {
       }
       parsed.trajectoryFile = value;
       index += 1;
+    } else if (arg === "--trajectory-peer") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("--trajectory-peer requires a peer slug");
+      }
+      parsed.trajectoryPeer = value;
+      index += 1;
     } else {
       throw new Error(`Unknown argument ${arg}`);
     }
   }
-  if (parsed.skipTrajectory && parsed.trajectoryFile) {
+  if (parsed.skipTrajectory && (parsed.trajectoryFile || parsed.trajectoryPeer)) {
     throw new Error("--skip-trajectory cannot be combined with --trajectory-file");
   }
+  if (parsed.trajectoryFile && !parsed.trajectoryPeer) {
+    throw new Error(
+      "--trajectory-file requires --trajectory-peer. Eval ids such as smoke exist on more than one peer.",
+    );
+  }
+  if (parsed.trajectoryPeer && !parsed.trajectoryFile) {
+    throw new Error("--trajectory-peer requires --trajectory-file");
+  }
+  if (parsed.trajectoryPeer && !isFactoryPeer(parsed.trajectoryPeer)) {
+    throw new Error(
+      `Unknown peer ${parsed.trajectoryPeer}. Expected one of ${FACTORY_PEERS.join(", ")}.`,
+    );
+  }
   return parsed;
+}
+
+function commandOf(flags: Flags): string {
+  if (flags.skipTrajectory) {
+    return "npm run evals -- --skip-trajectory";
+  }
+  if (flags.trajectoryFile && flags.trajectoryPeer) {
+    return `npm run evals -- --trajectory-peer ${flags.trajectoryPeer} --trajectory-file ${flags.trajectoryFile}`;
+  }
+  return "npm run evals";
 }

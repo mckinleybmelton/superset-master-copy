@@ -50,6 +50,20 @@ test("scored factory checks pass and do not invent trajectory scores", async () 
   );
 });
 
+test("a trajectory payload without a peer is rejected before scores are applied", async () => {
+  await assert.rejects(
+    () =>
+      runEvaluation({
+        includeTrajectory: true,
+        trajectoryPayload: {
+          results: [{ id: "smoke", ok: true, verdict: "passed", durationMs: 1 }],
+        },
+        git: { sha: "abc1234", branch: "test", dirty: false },
+      }),
+    /trajectoryPeer/,
+  );
+});
+
 test("a failed assertion keeps expected and actual", async () => {
   const result = await executeCase({
     id: "sample.mismatch",
