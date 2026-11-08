@@ -1,4 +1,5 @@
 node_modules/
+eval-results/runs/
 .env
 .env.local
 .env.factory

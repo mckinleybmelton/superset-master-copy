@@ -17,7 +17,11 @@
     "serve": "npx --yes @grok/agent-sdk@0.6.0 serve --dir ./agents --dev",
     "dev": "npx --yes @grok/agent-sdk@0.6.0 serve --dir ./agents --dev",
     "info": "npx --yes @grok/agent-sdk@0.6.0 info --dir ./agents --json",
-    "check": "npm run check --workspace=orchestrator && npm run check --workspace=product && npm run check --workspace=design && npm run check --workspace=architect && npm run check --workspace=implementer && npm run check --workspace=reviewer",
+    "check": "npm run check --workspace=orchestrator && npm run check --workspace=product && npm run check --workspace=design && npm run check --workspace=architect && npm run check --workspace=implementer && npm run check --workspace=reviewer && npm run evals:check",
+    "evals": "node --import tsx eval-runner/src/cli.ts",
+    "evals:test": "node --import tsx --test eval-runner/test/*.test.ts",
+    "evals:check": "tsc -p eval-runner/tsconfig.json --noEmit",
+    "evals:dashboard": "node --import tsx eval-runner/src/dashboard/server.ts",
     "deploy:dry-run": "for d in agents/*/; do npx --yes @grok/agent-sdk@0.6.0 deploy --dir \"$d\" --dry-run --json; done"
   }
 }
