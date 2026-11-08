@@ -61,3 +61,7 @@ npx @grok/agent-sdk@0.6.0 tool call start_factory_ticket \
   --dir ./agents --slug orchestrator \
   --input '{"description":"Add a SqlLab factory status badge"}' --json
 ```
+
+## Evals and results dashboard
+
+`npm run evals` executes the stage, intake, and artifact checks and writes `eval-results/latest.json`. Model trajectory files under `agents/*/evals` are listed and left unscored unless you pass an Agent SDK results file. `npm run evals:dashboard` serves that report at http://127.0.0.1:8787/. See [docs/evals.md](docs/evals.md).

@@ -1,0 +1,1095 @@
+{
+  "schemaVersion": 1,
+  "runId": "eval-20261108T221623Z-280fd09",
+  "startedAt": "2026-11-08T22:16:23.798Z",
+  "finishedAt": "2026-11-08T22:16:27.978Z",
+  "git": {
+    "sha": "280fd09451bda7b0b232d85a6e64c01720034ded",
+    "branch": "cursor/factory-eval-dashboard-95b2",
+    "dirty": false
+  },
+  "runner": {
+    "node": "v22.23.4",
+    "sdk": "0.6.0",
+    "command": "npm run evals",
+    "trajectory": "listed"
+  },
+  "summary": {
+    "passed": 39,
+    "failed": 0,
+    "noted": 1,
+    "blocked": 8,
+    "fixtures": 1,
+    "scoredPassRate": 1,
+    "scoredTotal": 39
+  },
+  "limitations": [
+    "Scored checks execute factory TypeScript: stage tools, Jira intake tools, artifact contract tools, and the skill files those peers follow. They do not call Jira, GitHub, or a model.",
+    "Model trajectory files under agents/*/evals are listed by the Agent SDK. Without a Cursor credential they stay blocked and have no score.",
+    "fixtures/github/pull_request.labeled.json is an example payload. Its row checks file shape only and is excluded from the scored pass rate.",
+    "apply_stage checks the writer and the pr_review pull-request rule. It does not reject hops that skip TRANSITIONS. That gap is a noted limitation, not a pass."
+  ],
+  "cases": [
+    {
+      "id": "stage.order",
+      "suite": "stage-machine",
+      "title": "Factory stage order matches the documented SDLC",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "FACTORY_STAGES is prd_draft through done with no extra or missing labels.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "stages": [
+          "prd_draft",
+          "prd_review",
+          "design_draft",
+          "design_review",
+          "architecture_draft",
+          "architecture_review",
+          "implementation",
+          "pr_review",
+          "done"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.ownership_matrix",
+      "suite": "stage-machine",
+      "title": "Only the documented actor may plan each stage label",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "apply_stage accepts a writer from the documented matrix and rejects every other actor. pr_review is checked with prExists true so the denial is ownership, not a missing PR.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "checked": 63,
+        "mismatches": []
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.pr_review_requires_pr",
+      "suite": "stage-machine",
+      "title": "Implementer cannot plan pr_review without a pull request",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "apply_stage with actor implementer and nextStage pr_review returns an error unless prExists is true, then it removes implementation and adds pr_review.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "missing": {
+          "ok": false,
+          "error": "pr_review requires an existing pull request (prExists must be true)"
+        },
+        "ready": {
+          "ok": true,
+          "from": "implementation",
+          "to": "pr_review",
+          "remove": [
+            "implementation"
+          ],
+          "add": [
+            "pr_review"
+          ]
+        }
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.single_label",
+      "suite": "stage-machine",
+      "title": "Exactly one factory stage label is valid",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "get_stage ignores the factory marker, assert_stage accepts a single expected stage, and both reject two stage labels.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "one": {
+          "stage": "design_draft",
+          "extras": [],
+          "validStages": [
+            "prd_draft",
+            "prd_review",
+            "design_draft",
+            "design_review",
+            "architecture_draft",
+            "architecture_review",
+            "implementation",
+            "pr_review",
+            "done"
+          ],
+          "ok": true
+        },
+        "none": {
+          "stage": null,
+          "extras": [],
+          "validStages": [
+            "prd_draft",
+            "prd_review",
+            "design_draft",
+            "design_review",
+            "architecture_draft",
+            "architecture_review",
+            "implementation",
+            "pr_review",
+            "done"
+          ],
+          "ok": false
+        },
+        "asserted": {
+          "ok": true,
+          "stage": "prd_draft"
+        },
+        "many": {
+          "ok": false,
+          "error": "Multiple factory stage labels present: prd_draft, prd_review"
+        }
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.routing",
+      "suite": "stage-machine",
+      "title": "Draft stages route to one peer and review stages are human gates",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "route_for_stage returns the documented peer for draft and implementation stages, and gate=true with peer=null for every *_review stage and done.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "prd_draft": {
+          "peer": "product",
+          "gate": false
+        },
+        "prd_review": {
+          "peer": null,
+          "gate": true
+        },
+        "design_draft": {
+          "peer": "design",
+          "gate": false
+        },
+        "design_review": {
+          "peer": null,
+          "gate": true
+        },
+        "architecture_draft": {
+          "peer": "architect",
+          "gate": false
+        },
+        "architecture_review": {
+          "peer": null,
+          "gate": true
+        },
+        "implementation": {
+          "peer": "implementer",
+          "gate": false
+        },
+        "pr_review": {
+          "peer": null,
+          "gate": true
+        },
+        "done": {
+          "peer": null,
+          "gate": true
+        }
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.actor_schema",
+      "suite": "stage-machine",
+      "title": "apply_stage rejects an actor outside the factory roster",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 2,
+      "criterion": "The apply_stage input schema rejects actor values other than the seven factory actors.",
+      "scope": "Calls the factoryCore stage tools (apply_stage, assert_stage, get_stage, route_for_stage). Does not write Jira labels.",
+      "evidence": {
+        "messages": [
+          "Invalid option: expected one of \"orchestrator\"|\"product\"|\"design\"|\"architect\"|\"implementer\"|\"reviewer\"|\"human\""
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "stage.adjacency_not_enforced",
+      "suite": "stage-machine",
+      "title": "Stage planner does not reject hops that skip TRANSITIONS",
+      "classification": "limitation",
+      "status": "noted",
+      "durationMs": 0,
+      "criterion": "planApplyStage enforces the writer and the pr_review pull-request rule. It does not consult TRANSITIONS, so a human can plan done directly from prd_draft.",
+      "scope": "Recorded limitation of the tool, not a successful SDLC transition. If apply_stage starts rejecting this hop, this row fails until the criterion is reclassified as a scored rejection.",
+      "evidence": {
+        "from": "prd_draft",
+        "to": "done",
+        "actor": "human",
+        "result": {
+          "ok": true,
+          "from": "prd_draft",
+          "to": "done",
+          "remove": [
+            "prd_draft"
+          ],
+          "add": [
+            "done"
+          ]
+        },
+        "meaning": "Ownership passed. The tool did not require the approve path prd_review → design_draft → architecture_draft → implementation → pr_review → done."
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.bind_explicit_key",
+      "suite": "jira-intake",
+      "title": "A description that contains a Jira key binds that issue at prd_draft",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 1,
+      "criterion": "start_factory_ticket mode is bind, the label plan adds only prd_draft, and host kv stores factory:ticket:<key>.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "mode": "bind",
+        "jiraKey": "ASF-12",
+        "kvKeys": [
+          "factory:ticket:ASF-12"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.refuse_create_without_project",
+      "suite": "jira-intake",
+      "title": "Intake fails closed when there is no key and no Jira project",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "start_factory_ticket returns ok false and names FACTORY_JIRA_PROJECT.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "error": "FACTORY_JIRA_PROJECT is not set. Set it in factory/.env.factory, or pass a Jira key in the message.",
+        "kvKeys": []
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.create_when_project_configured",
+      "suite": "jira-intake",
+      "title": "A configured project with no search hit plans a new prd_draft issue",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "mode is create, createPayload labels are factory and prd_draft, and searchHint names the project.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "mode": "create",
+        "labels": [
+          "factory",
+          "prd_draft"
+        ],
+        "jql": "project = ASF AND resolution = Unresolved"
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.bind_exact_search_hit",
+      "suite": "jira-intake",
+      "title": "One exact summary match binds the existing issue instead of creating",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "shouldAutoBindSearchHit, via start_factory_ticket, binds a single case-insensitive exact summary.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "mode": "bind",
+        "jiraKey": "ASF-3"
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.do_not_bind_ambiguous_hits",
+      "suite": "jira-intake",
+      "title": "Near matches and duplicate titles do not auto-bind",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Two different summaries, or two identical exact summaries, stay on mode create.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "near": "create",
+        "duplicate": "create"
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.truncate_summary",
+      "suite": "jira-intake",
+      "title": "Jira summaries are capped at 255 characters",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "normalizeJiraSummary, via start_factory_ticket, keeps a 255-character summary ending in an ellipsis.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "length": 255
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.record_gate",
+      "suite": "jira-intake",
+      "title": "A human gate decision is stored under factory:gate:<issue>:<stage>",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "record_gate writes the decision into host kv and rejects a decision outside approve|reject.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "key": "factory:gate:ASF-12:prd_review",
+        "storedDecision": "approve"
+      },
+      "failure": null
+    },
+    {
+      "id": "intake.jira_config_defaults",
+      "suite": "jira-intake",
+      "title": "jira_config reports the project key and defaults the marker label to factory",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "With FACTORY_JIRA_PROJECT unset the project is null. With ASF set, projectKey is ASF and factoryLabel is factory.",
+      "scope": "Executes orchestrator intake tools in-process with an eval host kv. Does not call the Atlassian API.",
+      "evidence": {
+        "missing": {
+          "projectKey": null,
+          "factoryLabel": "factory"
+        },
+        "configured": {
+          "projectKey": "ASF",
+          "factoryLabel": "factory"
+        }
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.prd_contract_accepts",
+      "suite": "artifact-contracts",
+      "title": "prd_contract accepts a complete PRD payload",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "execute returns ok true and echoes the contract section names.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "ok": true,
+        "sections": [
+          "problem",
+          "goals",
+          "nonGoals",
+          "userStories",
+          "requirements",
+          "successMetrics",
+          "openQuestions"
+        ],
+        "storyCount": 1
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.prd_contract_rejects_empty_goals",
+      "suite": "artifact-contracts",
+      "title": "prd_contract rejects a PRD with no goals",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 1,
+      "criterion": "The input schema fails before a PRD with goals: [] can be treated as valid.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "messages": [
+          "Too small: expected array to have >=1 items"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.review_packet_accepts",
+      "suite": "artifact-contracts",
+      "title": "review_packet_contract accepts a packet with a PR URL and a recommendation",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "execute returns ok true and preserves the recommendation. The sample URL is the example fixture URL, not a reviewed pull request.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "recommendation": "comment",
+        "sampleUrl": "https://github.com/mckinleybmelton/superset-master-copy/pull/1",
+        "note": "ciStatus is an input to the contract tool. This eval does not query GitHub checks."
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.review_packet_rejects_recommendation",
+      "suite": "artifact-contracts",
+      "title": "review_packet_contract rejects a recommendation outside the enum",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 1,
+      "criterion": "Schema enum is approve, changes_requested, or comment.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "messages": [
+          "Invalid option: expected one of \"approve\"|\"changes_requested\"|\"comment\""
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.require_pr_aborts",
+      "suite": "artifact-contracts",
+      "title": "require_pr_before_review aborts when no PR URL is supplied",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The tool returns ok false and does not plan a pr_review label.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "error": "Abort: pr_review requires an existing pull request URL"
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.require_pr_plans_review",
+      "suite": "artifact-contracts",
+      "title": "require_pr_before_review plans pr_review when a URL is present",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "From implementation, the implementer plan removes implementation and adds pr_review.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "prUrl": "https://github.com/mckinleybmelton/superset-master-copy/pull/1",
+        "remove": [
+          "implementation"
+        ],
+        "add": [
+          "pr_review"
+        ],
+        "note": "The URL is the example fixture. No pull request was opened or reviewed."
+      },
+      "failure": null
+    },
+    {
+      "id": "artifact.product_repo_defaults",
+      "suite": "artifact-contracts",
+      "title": "product_repo_config reads the product repo and default branch",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Unset env falls back to mckinleybmelton/superset-master-copy and master. FACTORY_PRODUCT_REPO overrides the repo.",
+      "scope": "Executes peer artifact tools. A valid payload here is a contract check, not a model-written PRD, design, or review.",
+      "evidence": {
+        "defaults": {
+          "repo": "mckinleybmelton/superset-master-copy",
+          "defaultBranch": "master",
+          "localPath": null
+        },
+        "override": {
+          "repo": "example/superset",
+          "defaultBranch": "main",
+          "localPath": null
+        }
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.draft_prd",
+      "suite": "artifact-procedures",
+      "title": "PRD skill declares the contract sections and does not self-approve",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 7,
+      "criterion": "The skill file contains: Problem, Goals, User stories, Requirements, Success metrics, Open questions, prd_review.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/product/bot/skills/draft-prd.md",
+        "bytes": 434,
+        "checked": [
+          "Problem",
+          "Goals",
+          "User stories",
+          "Requirements",
+          "Success metrics",
+          "Open questions",
+          "prd_review"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.post_prd",
+      "suite": "artifact-procedures",
+      "title": "Posting a PRD moves prd_draft to prd_review as product",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 1,
+      "criterion": "The skill file contains: prd_draft, prd_review, actor: product.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/product/bot/skills/post-prd-to-jira.md",
+        "bytes": 429,
+        "checked": [
+          "prd_draft",
+          "prd_review",
+          "actor: product"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.manage_backlog",
+      "suite": "artifact-procedures",
+      "title": "Backlog skill forbids self-approving review gates",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: Never approve, *_review.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/product/bot/skills/manage-backlog.md",
+        "bytes": 285,
+        "checked": [
+          "Never approve",
+          "*_review"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.draft_design",
+      "suite": "artifact-procedures",
+      "title": "Design skill declares UX sections and does not self-approve",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: Personas, User flows, Screens, Empty, Accessibility, design_review.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/design/bot/skills/draft-design.md",
+        "bytes": 342,
+        "checked": [
+          "Personas",
+          "User flows",
+          "Screens",
+          "Empty",
+          "Accessibility",
+          "design_review"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.post_design",
+      "suite": "artifact-procedures",
+      "title": "Posting a design moves design_draft to design_review as design",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: design_draft, design_review, actor: design.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/design/bot/skills/post-design-to-jira.md",
+        "bytes": 316,
+        "checked": [
+          "design_draft",
+          "design_review",
+          "actor: design"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.draft_architecture",
+      "suite": "artifact-procedures",
+      "title": "Architecture skill declares the design sections and does not self-approve",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: Context, Components, Boundaries, Dependency, Risks, Test plan, architecture_review.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/architect/bot/skills/draft-architecture.md",
+        "bytes": 452,
+        "checked": [
+          "Context",
+          "Components",
+          "Boundaries",
+          "Dependency",
+          "Risks",
+          "Test plan",
+          "architecture_review"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.post_architecture",
+      "suite": "artifact-procedures",
+      "title": "Posting architecture moves architecture_draft to architecture_review as architect",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: architecture_draft, architecture_review, actor: architect.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/architect/bot/skills/post-architecture-to-jira.md",
+        "bytes": 330,
+        "checked": [
+          "architecture_draft",
+          "architecture_review",
+          "actor: architect"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.implement_change",
+      "suite": "artifact-procedures",
+      "title": "Implementer skill stays on implementation until open-pr",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: implementation, product_repo_config, factory/, open-pr.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/implementer/bot/skills/implement-change.md",
+        "bytes": 441,
+        "checked": [
+          "implementation",
+          "product_repo_config",
+          "factory/",
+          "open-pr"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.open_pr",
+      "suite": "artifact-procedures",
+      "title": "open-pr requires a PR URL before pr_review and does not merge",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: require_pr_before_review, pr_review, Never merge.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/implementer/bot/skills/open-pr.md",
+        "bytes": 435,
+        "checked": [
+          "require_pr_before_review",
+          "pr_review",
+          "Never merge"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.review_pr",
+      "suite": "artifact-procedures",
+      "title": "Review skill validates a packet at pr_review",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: pr_review, review_packet_contract.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/reviewer/bot/skills/review-pr.md",
+        "bytes": 294,
+        "checked": [
+          "pr_review",
+          "review_packet_contract"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.post_review_packet",
+      "suite": "artifact-procedures",
+      "title": "Reviewer posts the packet and does not change stage labels",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: Do not, change Jira stage labels, implementation.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/reviewer/bot/skills/post-review-packet.md",
+        "bytes": 309,
+        "checked": [
+          "Do not",
+          "change Jira stage labels",
+          "implementation"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "procedure.intake_change",
+      "suite": "artifact-procedures",
+      "title": "Orchestrator intake routes prd_draft to product and stops at prd_review",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "The skill file contains: start_factory_ticket, prd_draft, product, prd_review, Do **not** write the PRD.",
+      "scope": "Checks that the peer skill files still declare the sections and stage rules those peers follow. Does not score generated prose.",
+      "evidence": {
+        "path": "agents/orchestrator/bot/skills/intake-change.md",
+        "bytes": 1465,
+        "checked": [
+          "start_factory_ticket",
+          "prd_draft",
+          "product",
+          "prd_review",
+          "Do **not** write the PRD"
+        ]
+      },
+      "failure": null
+    },
+    {
+      "id": "fixture.github.pull_request_labeled",
+      "suite": "example-fixtures",
+      "title": "Example GitHub labeled payload parses",
+      "classification": "example_fixture",
+      "status": "fixture",
+      "durationMs": 0,
+      "criterion": "The committed example payload has a pull request URL, the factory label, and a placeholder SHA. This is a file-shape check.",
+      "scope": "Example fixture only. It is not a pull request the factory opened, and it is not a review result. CI status is not present in the file and is not inferred.",
+      "evidence": {
+        "path": "fixtures/github/pull_request.labeled.json",
+        "action": "labeled",
+        "htmlUrl": "https://github.com/mckinleybmelton/superset-master-copy/pull/1",
+        "label": "factory",
+        "repository": "mckinleybmelton/superset-master-copy",
+        "headSha": "0000000000000000000000000000000000000001",
+        "baseSha": "0000000000000000000000000000000000000000",
+        "placeholderSha": true,
+        "scored": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.orchestrator.discovered",
+      "suite": "model-trajectory",
+      "title": "orchestrator eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "orchestrator",
+        "files": [
+          "gate.eval.ts",
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "gate",
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.orchestrator.gate",
+      "suite": "model-trajectory",
+      "title": "At prd_review the orchestrator stops for a human gate and does not ask product to draft again.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "orchestrator",
+        "evalId": "gate",
+        "tags": [
+          "gate"
+        ],
+        "description": "At prd_review the orchestrator stops for a human gate and does not ask product to draft again.",
+        "path": "/workspace/factory/agents/orchestrator/evals/gate.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.orchestrator.smoke",
+      "suite": "model-trajectory",
+      "title": "Describe-first intake plans a Jira ticket and routes toward product without self-drafting a PRD.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "orchestrator",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Describe-first intake plans a Jira ticket and routes toward product without self-drafting a PRD.",
+        "path": "/workspace/factory/agents/orchestrator/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.product.discovered",
+      "suite": "model-trajectory",
+      "title": "product eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "product",
+        "files": [
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.product.smoke",
+      "suite": "model-trajectory",
+      "title": "Product validates a PRD contract without approving gates.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "product",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Product validates a PRD contract without approving gates.",
+        "path": "/workspace/factory/agents/product/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.design.discovered",
+      "suite": "model-trajectory",
+      "title": "design eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "design",
+        "files": [
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.design.smoke",
+      "suite": "model-trajectory",
+      "title": "Design peer drafts UX notes and does not self-approve.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "design",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Design peer drafts UX notes and does not self-approve.",
+        "path": "/workspace/factory/agents/design/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.architect.discovered",
+      "suite": "model-trajectory",
+      "title": "architect eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "architect",
+        "files": [
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.architect.smoke",
+      "suite": "model-trajectory",
+      "title": "Architect drafts a component list without self-approval.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "architect",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Architect drafts a component list without self-approval.",
+        "path": "/workspace/factory/agents/architect/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.implementer.discovered",
+      "suite": "model-trajectory",
+      "title": "implementer eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "implementer",
+        "files": [
+          "artifact-gate.eval.ts",
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "artifact-gate",
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.implementer.artifact-gate",
+      "suite": "model-trajectory",
+      "title": "Implementer refuses pr_review without a PR URL.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "implementer",
+        "evalId": "artifact-gate",
+        "tags": [
+          "artifact-gate"
+        ],
+        "description": "Implementer refuses pr_review without a PR URL.",
+        "path": "/workspace/factory/agents/implementer/evals/artifact-gate.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.implementer.smoke",
+      "suite": "model-trajectory",
+      "title": "Implementer can read product repo config.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "implementer",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Implementer can read product repo config.",
+        "path": "/workspace/factory/agents/implementer/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.reviewer.discovered",
+      "suite": "model-trajectory",
+      "title": "reviewer eval files are listed by the Agent SDK",
+      "classification": "executed",
+      "status": "passed",
+      "durationMs": 0,
+      "criterion": "Every agents/<peer>/evals/*.eval.ts stem appears in `agent-sdk eval --list`.",
+      "scope": "Discovery only. A passing row means the file is registered. It does not mean the model trajectory passed.",
+      "evidence": {
+        "peer": "reviewer",
+        "files": [
+          "smoke.eval.ts"
+        ],
+        "listedIds": [
+          "smoke"
+        ],
+        "missing": [],
+        "listError": null
+      },
+      "failure": null
+    },
+    {
+      "id": "trajectory.reviewer.smoke",
+      "suite": "model-trajectory",
+      "title": "Reviewer validates a review packet contract.",
+      "classification": "blocked",
+      "status": "blocked",
+      "durationMs": 0,
+      "criterion": "Model trajectory gate defined for this peer.",
+      "scope": "Listed from the Agent SDK eval files. Not executed in this run, so there is no pass, fail, or score. A model turn needs a Cursor credential (CURSOR_API_KEY, CURSOR_API_KEY_FILE, or CURSOR_SERVICE_ACCOUNT_KEY).",
+      "evidence": {
+        "peer": "reviewer",
+        "evalId": "smoke",
+        "tags": [
+          "smoke"
+        ],
+        "description": "Reviewer validates a review packet contract.",
+        "path": "/workspace/factory/agents/reviewer/evals/smoke.eval.ts",
+        "credentialPresent": false,
+        "executed": false
+      },
+      "failure": null
+    }
+  ]
+}
